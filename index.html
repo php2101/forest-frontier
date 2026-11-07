@@ -254,7 +254,7 @@ function makeCity(lv,wl,hex,own,up){const g=new THREE.Group();const st=MAT.stone
     if(wl>=4){for(const x of [-gate/2-.18,gate/2+.18])box(g,.36,h+.5,.42,st,x,(h+.5)/2,E);box(g,gate+.72,.26,.42,st,0,h+.38,E);}}
   if(own)makeFire(g,.9,0,2.85);
   return g;}
-function makePlayer(){const g=new THREE.Group();const skin=MAT.skin(),tunic=M('#2f5fb3'),pants=M('#4a3b2c'),boot=M('#2b2018'),hair=M('#5a3519');
+function makePlayer(hex){const g=new THREE.Group();const skin=MAT.skin(),tunic=M(hex||'#2f5fb3'),pants=M('#4a3b2c'),boot=M('#2b2018'),hair=M('#5a3519');
   const legL=new THREE.Group(),legR=new THREE.Group();legL.position.set(.08,.42,0);legR.position.set(-.08,.42,0);g.add(legL,legR);
   for(const l of [legL,legR]){box(l,.11,.34,.13,pants,0,-.17,0);box(l,.12,.08,.17,boot,0,-.37,.02);}
   box(g,.34,.38,.21,tunic,0,.62,0);box(g,.36,.06,.23,M('#3b2a1a'),0,.45,0);box(g,.3,.04,.02,M('#c9a14a',.4,.6),0,.45,.115);
@@ -683,6 +683,14 @@ function syncWorldMeshes(dt){const S=WS.scene;
   const ps=new Set(projs);
   for(const p of projs){let m=WS.pm.get(p);if(!m){m=new THREE.Mesh(GEO.sph,p.k==='catapult'?MAT.stone():M('#9ecbff',.3,0,{emissive:'#5aa0ff',emissiveIntensity:3}));m.scale.setScalar(p.k==='catapult'?.14:.08);S.add(m);WS.pm.set(p,m);}m.position.set(p.x/T,p.k==='catapult'?1.6:1.0,p.y/T);}
   for(const [p,m] of WS.pm)if(!ps.has(p)){S.remove(m);WS.pm.delete(p);}
+  // other players walking around
+  WS.op=WS.op||{};for(const k in G.others){const o=G.others[k];let a=WS.op[k];
+    if(!o.online||!o.pos){if(a)a.visible=false;continue;}
+    if(!a){a=makePlayer(pvpHex(+k));a.scale.setScalar(1.05);S.add(a);WS.op[k]=a;a.position.set(o.pos[0],0,o.pos[1]);a.userData.walk=0;}
+    a.visible=true;const dx=o.pos[0]-a.position.x,dz=o.pos[1]-a.position.z,d=Math.hypot(dx,dz);
+    if(d>6){a.position.x=o.pos[0];a.position.z=o.pos[1];}else{const k2=Math.min(1,dt*6);a.position.x+=dx*k2;a.position.z+=dz*k2;}
+    a.rotation.y=angLerp(a.rotation.y,o.pos[2],Math.min(1,dt*10));const mv=o.pos[3]&&d>.05;if(mv)a.userData.walk+=dt;
+    const U2=a.userData,sw2=mv?Math.sin(U2.walk*11):0;U2.legL.rotation.x=sw2*.7;U2.legR.rotation.x=-sw2*.7;U2.armL.rotation.x=-sw2*.5;U2.armR.rotation.x=sw2*.5;for(const t in U2.tools)U2.tools[t].visible=t==='sword';}
   // player
   const pl=WS.pl,U=pl.userData;pl.position.set(player.x/T,0,player.y/T);pl.rotation.y=angLerp(pl.rotation.y,player.ang,Math.min(1,dt*12));
   const tool=player.working===TREE?'axe':player.working===ROCK?'pick':'sword';for(const k in U.tools)U.tools[k].visible=k===tool;
@@ -719,6 +727,7 @@ function renderWorld(dt){WS.t+=dt;
   const ml=[];if(G.march)ml.push([G.march,0]);for(const e of G.emarch)ml.push([e,1]);for(const pm of mpMarches())ml.push([pm,2]);
   for(const [m,side] of ml){const p=marchPos(m);const s=toScreen(cam,p[0],2.3,p[1]);if(!s)continue;const n=armyTotal(m.units);
     if(side===2)label(`👤 ${m.label} (${n})`,s[0],s[1],'#fff',13);else if(side)label(`⚠ ${G.civs[m.civ].name}${m.helpers&&m.helpers.length?' + allies':''} army (${n}) · ${fmt(marchEta(m,ESPD))}`,s[0],s[1],'#ffb4a8',13);else label(`🚩 Your army (${n}) · ${fmt(marchEta(m,MSPD))}`,s[0],s[1],'#cfe2ff',13);}
+  for(const k in G.others){const a=WS.op&&WS.op[k];if(!a||!a.visible)continue;const s=toScreen(cam,a.position.x,1.55,a.position.z);if(s)label(`👤 ${G.others[k].name}`,s[0],s[1],pvpHex(+k),14);}
   if(player.hp<100){const s=toScreen(cam,tx,1.45,tz);if(s)hpBar(s[0],s[1],34,player.hp/100);}
   for(const w of wolves)if(w.hp<w.max){const s=toScreen(cam,w.x/T,1.0,w.y/T);if(s)hpBar(s[0],s[1],28,w.hp/w.max);}
   if(player.working){const gi=player.path.length&&G.tiles[player.path[0]]===TREE?player.path[0]:player.gather;if(gi!=null){const s=toScreen(cam,gi%W+.5,2.4,(gi/W|0)+.5);const pr=gi===player.gather?player.gT/(player.working===TREE?0.9:1.1):(player.cT||0)/0.9;if(s)hpBar(s[0],s[1],34,pr,'#ffd166');}}
@@ -734,6 +743,7 @@ function drawMini(){if(!G)return;const d=mimg.data;const crgb=G.civs.map(c=>hexR
   if(G.march){const p=marchPos(G.march);mctx.fillStyle='#9cc4ff';mctx.fillRect(p[0]-2,p[1]-2,4,4);}
   for(const e of G.emarch){const p=marchPos(e);mctx.fillStyle='#fff';mctx.fillRect(p[0]-3,p[1]-3,6,6);mctx.fillStyle=G.civs[e.civ].hex;mctx.fillRect(p[0]-2,p[1]-2,4,4);}
   for(const pm of mpMarches()){const p=marchPos(pm);mctx.fillStyle='#fff';mctx.fillRect(p[0]-2,p[1]-2,5,5);}
+  for(const k in (G.others||{})){const o=G.others[k];if(!o.online||!o.pos)continue;mctx.fillStyle='#000';mctx.fillRect(o.pos[0]-3,o.pos[1]-3,7,7);mctx.fillStyle=pvpHex(+k);mctx.fillRect(o.pos[0]-2,o.pos[1]-2,5,5);}
   mctx.fillStyle='#fff';mctx.fillRect(Math.floor(player.x/T)-1,Math.floor(player.y/T)-1,3,3);}
 
 /* ================= BATTLE LOGIC ================= */
@@ -1112,7 +1122,7 @@ $('btnMarch').onclick=()=>{if(!paused)openMarch();};
 $('btnHelp').onclick=()=>{if(!paused)openHelp();};
 addEventListener('beforeunload',()=>{if(mode==='world')save(true);});
 addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='world')save(true);});
-$('hMpP').onclick=()=>{if(paused||!G||!G.mp)return;showModal(`<h2>🌐 Online game</h2><p>Room code: <b style="font-size:22px;letter-spacing:3px">${G.mp.code.toUpperCase()}</b></p><p>Give this code to a friend. They open this game, press 🌐 Multiplayer → Join, and type it in. (They must be invited to the game through its Share menu.)</p><p><b>Players:</b><br>👤 ${G.mp.name} (you)${Object.values(G.others).map(o=>`<br>👤 ${o.name} ${o.online?'🟢 online':'⚪ offline'}`).join('')}</p>`,[{t:'Close',primary:true}]);};
+$('hMpP').onclick=()=>{if(paused||!G||!G.mp)return;showModal(`<h2>🌐 Online game</h2><p>Room code: <b style="font-size:22px;letter-spacing:3px">${G.mp.code.toUpperCase()}</b></p><p>Give this code to a friend. They open this game, press 🌐 Multiplayer → Join, and type it in.</p><p><b>Players:</b><br>👤 ${G.mp.name} (you)${Object.entries(G.others).map(([k,o])=>`<br><span style="color:${pvpHex(+k)}">👤 ${o.name}</span> ${o.online?'🟢 online':'⚪ offline'}${o.online&&o.pos?` · 📍 ${Math.round(Math.hypot(o.pos[0]-player.x/T,o.pos[1]-player.y/T))} tiles away (look for their colored dot on the minimap)`:''}`).join('')}</p><p style="opacity:.75">Tip: give yourselves different names in 🌐 Multiplayer so you can tell each other apart.</p>`,[{t:'Close',primary:true}]);};
 $('btnSave').onclick=()=>{if(mode==='world'&&!paused)openSaveCode();};
 
 /* ================= MULTIPLAYER ================= */
@@ -1126,13 +1136,13 @@ function mpMarches(){const out=[];if(!G||!G.mp)return out;for(const k in G.other
   Object.assign(obj,{path:[Math.round(m.t[1])*W+Math.round(m.t[0])],start:Math.max(0,Math.min(H-1,cy))*W+Math.max(0,Math.min(W-1,cx)),idx:0,prog:0,units:m.u||{},hex:pvpHex(+k),label:`${o.name}'s army${m.pvp===G.mp.slot&&m.s==='going'?' → YOU':''}`,atMe:m.pvp===G.mp.slot&&m.s==='going',key});out.push(obj);}return out;}
 function mpState(){const m=G.march;return {v:3,code:G.mp.code,seed:G.seed,slot:G.mp.slot,name:G.mp.name,lv:G.city.lv,wall:G.city.wall,weapons:{turret:G.up.turret,ballista:G.up.ballista,catapult:G.up.catapult},
   army:G.army,res:{wood:G.res.wood|0,stone:G.res.stone|0,gold:G.res.gold|0},cap:G.civs.filter(c=>c.captured).map(c=>c.i),
-  march:m?{id:m.id,s:m.state,pvp:m.pvp,o:[...marchPos(m).slice(0,2)],t:m.state==='going'?[(mTarget(m)||{x:0}).x,(mTarget(m)||{y:0}).y]:[m.origin.x,m.origin.y],f:0,u:m.units}:null,raids:G.raidsOut.slice(-4)};}
+  march:m?{id:m.id,s:m.state,pvp:m.pvp,o:[...marchPos(m).slice(0,2)],t:m.state==='going'?[(mTarget(m)||{x:0}).x,(mTarget(m)||{y:0}).y]:[m.origin.x,m.origin.y],f:0,u:m.units}:null,raids:G.raidsOut.slice(-4),p:[Math.round(player.x/T*10)/10,Math.round(player.y/T*10)/10,Math.round(player.ang*100)/100,player.moving||player.working?1:0]};}
 function mpPush(force){if(!MP.room||!G||!G.mp)return;const st=mpState();const j=JSON.stringify(st);if(!force&&j===MP.last)return;MP.last=j;MP.room.presence({st}).catch(()=>{});}
-function mpTick(dt){if(!G.mp)return;MP.pushT-=dt;MP.hb=(MP.hb||0)-dt;if(MP.pushT<=0){MP.pushT=2;if(MP.hb<=0){MP.hb=8;mpPush(true);}else mpPush();for(const k in G.others)G.others[k].online=!!MP.seen[k]&&Date.now()-MP.seen[k]<15000;}}
+function mpTick(dt){if(!G.mp)return;MP.pushT-=dt;MP.hb=(MP.hb||0)-dt;if(MP.pushT<=0){MP.pushT=.4;if(MP.hb<=0){MP.hb=8;mpPush(true);}else mpPush();for(const k in G.others)G.others[k].online=!!MP.seen[k]&&Date.now()-MP.seen[k]<15000;}}
 function mpHandlePeers(peers){if(!G||!G.mp)return;let changed=false;
   for(const p of peers){if(p.sameTab)continue;const st=p.presence&&p.presence.st;if(!st||st.v!==3||st.code!==G.mp.code||st.slot===G.mp.slot||st.slot==null||st.slot<0||st.slot>3)continue;
     const k=st.slot;MP.seen[k]=Math.min(Date.now(),+(p.presence.t||Date.now()));const name=String(st.name||'Player').slice(0,20);if(!G.others[k])changed=true;
-    G.others[k]={name,lv:+st.lv||1,wall:+st.wall||0,weapons:st.weapons||{},army:st.army||{},res:st.res||{},march:st.march||null,online:Date.now()-MP.seen[k]<15000,seenAt:MP.seen[k]};
+    const pp=Array.isArray(st.p)&&st.p.length>=4?st.p.map(Number):null;G.others[k]={pos:pp,name,lv:+st.lv||1,wall:+st.wall||0,weapons:st.weapons||{},army:st.army||{},res:st.res||{},march:st.march||null,online:Date.now()-MP.seen[k]<15000,seenAt:MP.seen[k]};
     for(const i of (st.cap||[])){const c=G.civs[i];if(c&&!c.captured&&c.taken==null){c.taken=k;c.ally=null;changed=true;}}
     for(const r of (st.raids||[])){if(r.to!==G.mp.slot||G.mpDone.includes(r.id))continue;G.mpDone.push(r.id);
       for(const t of ARMY_T)G.army[t]=Math.max(0,G.army[t]-((r.lost||{})[t]|0));for(const kk of ['wood','stone','gold'])G.res[kk]=Math.max(0,G.res[kk]-((r.stolen||{})[kk]|0));
