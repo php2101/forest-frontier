@@ -82,6 +82,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <button class="hbtn" id="btnCity">🏰 City <small>(C)</small></button>
   <button class="hbtn" id="btnArmy">🎖 Army <small>(T)</small></button>
   <button class="hbtn" id="btnMarch">🚩 March <small>(M)</small></button>
+  <button class="hbtn" id="btnAlly">🤝 Allies <small>(L)</small></button>
   <button class="hbtn" id="btnSave" title="Save now"><span id="hSave">💾 Save</span></button>
   <button class="hbtn" id="btnHelp">❓</button>
 </div>
@@ -530,25 +531,74 @@ function marchPath(sx,sy,gx,gy,stop){sx=Math.max(0,Math.min(W-1,sx));sy=Math.max
     if(goal(nx,ny)){const p=[];let k=ni;while(k!==s){p.push(k);k=prev[k];}return p.reverse();}q.push(ni);}}
   const p=[];const n=Math.max(Math.abs(gx-sx),Math.abs(gy-sy));for(let k=1;k<=n;k++)p.push(Math.round(sy+(gy-sy)*k/n)*W+Math.round(sx+(gx-sx)*k/n));return p;}
 const tileXY=i=>[i%W+.5,(i/W|0)+.5];
-function marchPos(m){const L=m.path.length;if(!L)return [...tileXY(m.start),0];if(m.idx>=L)return [...tileXY(m.path[L-1]),0];
+function marchPos(m){if(m.kind==='intercept')return [m.x,m.y,m.ang||0];const L=m.path.length;if(!L)return [...tileXY(m.start),0];if(m.idx>=L)return [...tileXY(m.path[L-1]),0];
   const A=tileXY(m.idx===0?m.start:m.path[m.idx-1]),Bp=tileXY(m.path[m.idx]);return [A[0]+(Bp[0]-A[0])*m.prog,A[1]+(Bp[1]-A[1])*m.prog,Math.atan2(Bp[0]-A[0],Bp[1]-A[1])];}
-const marchEta=(m,spd)=>(m.path.length-m.idx-m.prog)/spd;
+const marchEta=(m,spd)=>{if(m.kind==='intercept'){const T2=ixResolve(m.tgt);return T2?Math.hypot(T2.x-m.x,T2.y-m.y)/ISPD:0;}return (m.path.length-m.idx-m.prog)/spd;};
+const ISPD=2.8;
 function advance(m,dt,spd){m.prog+=dt*spd;while(m.prog>=1&&m.idx<m.path.length){m.prog-=1;m.idx++;}if(m.idx>=m.path.length)m.prog=0;}
 function origins(){const o=[{id:-1,name:'Your capital',x:G.home.x,y:G.home.y}];for(const c of G.civs)if(c.captured)o.push({id:c.i,name:c.name,x:c.x,y:c.y});return o;}
-function mTarget(m){return m.pvp!=null?pvpCiv(m.pvp):G.civs[m.civ];}
-function sendArmy(tg,units,org){if(!armyTotal(units)){toast('Pick at least one soldier to send.');return false;}org=org||origins()[0];const c=tg.pvp!=null?pvpCiv(tg.pvp):G.civs[tg.civ];if(!c){toast('That target is gone.');return false;}
+function mTarget(m){if(m.kind==='intercept'){const T2=ixResolve(m.tgt);return T2?{name:T2.name,x:Math.round(T2.x),y:Math.round(T2.y),hex:T2.hex}:null;}return m.pvp!=null?pvpCiv(m.pvp):G.civs[m.civ];}
+/* ---- interceptable armies: {ai:id} your attackers, {pai:k,eid} AI armies marching on another player, {pvp:k,mid} another player's own army ---- */
+function emId(e){if(!e.id)e.id=Math.random().toString(36).slice(2,8);return e.id;}
+function ixResolve(t){if(!t||!G)return null;
+  if(t.ai!=null){const e=G.emarch.find(e=>emId(e)===t.ai);if(!e)return null;const c=G.civs[e.civ],p=marchPos(e);return {x:p[0],y:p[1],name:`the ${c.name} army`,civName:c.name,hex:c.hex,lv:c.lv,units:e.units,dest:'your city',src:'ai',e};}
+  const o=G.others&&G.others[t.pai!=null?t.pai:t.pvp];if(!o||!o.online)return null;
+  if(t.pai!=null){const a=(o.em||[]).find(a=>a.id===t.eid);if(!a)return null;const c=G.civs[a.civ];if(!c)return null;const p=pvpEmPos(o,a);return {x:p[0],y:p[1],name:`the ${c.name} army`,civName:c.name,hex:c.hex,lv:c.lv,units:a.u||{},dest:`👤 ${o.name}`,src:'pai'};}
+  const m=o.march;if(!m||m.id!==t.mid||m.s!=='going')return null;const p=pvpMarchPos(o);const dn=m.pvp===G.mp.slot?'your city':m.pvp!=null&&G.others[m.pvp]?`👤 ${G.others[m.pvp].name}`:'a rival city';
+  return {x:p[0],y:p[1],name:`👤 ${o.name}'s army`,civName:o.name,hex:pvpHex(+t.pvp),lv:Math.max(1,o.lv|0),units:m.u||{},dest:dn,src:'pvp'};}
+function pvpMarchPos(o){const m=o.march;const L=Math.max(1,Math.hypot(m.t[0]-m.o[0],m.t[1]-m.o[1]));const f=Math.min(1,(m.f||0)+((Date.now()-o.seenAt)/1000)*MSPD/L);return [m.o[0]+(m.t[0]-m.o[0])*f,m.o[1]+(m.t[1]-m.o[1])*f];}
+function pvpEmPos(o,a){const L=Math.max(1,Math.hypot(a.t[0]-a.x,a.t[1]-a.y));const f=Math.min(1,((Date.now()-o.seenAt)/1000)*ESPD/L);return [a.x+(a.t[0]-a.x)*f,a.y+(a.t[1]-a.y)*f];}
+function ixTargets(){const out=[];if(!G)return out;for(const e of G.emarch){const t={ai:emId(e)};const r=ixResolve(t);if(r)out.push([t,r]);}
+  if(G.mp)for(const k in G.others){const o=G.others[k];if(!o.online)continue;for(const a of (o.em||[])){const t={pai:k,eid:a.id};const r=ixResolve(t);if(r)out.push([t,r]);}
+    if(o.march&&o.march.s==='going'&&o.march.id){const t={pvp:k,mid:o.march.id};const r=ixResolve(t);if(r)out.push([t,r]);}}
+  return out;}
+function sendArmy(tg,units,org){if(!armyTotal(units)){toast('Pick at least one soldier to send.');return false;}org=org||origins()[0];
+  if(tg.ix){const T2=ixResolve(tg.ix);if(!T2){toast('That army is gone.');return false;}for(const t of ARMY_T)G.army[t]-=units[t]||0;
+    G.march={id:Math.random().toString(36).slice(2,8),state:'going',kind:'intercept',tgt:tg.ix,origin:{x:org.x,y:org.y,name:org.name},units,x:org.x+.5,y:Math.min(H-1,org.y+3)+.5,ang:0,path:[],idx:0,prog:0,start:0};
+    toast(`⚔ Your army rides out to intercept ${T2.name}!`);updHUD();save(true);return true;}const c=tg.pvp!=null?pvpCiv(tg.pvp):G.civs[tg.civ];if(!c){toast('That target is gone.');return false;}if(tg.civ!=null&&isFriend(c)){toast(`The ${c.name} is your ally. Leave the alliance first.`);return false;}
   for(const t of ARMY_T)G.army[t]-=units[t]||0;const sy=Math.min(H-1,org.y+3);
   G.march={id:Math.random().toString(36).slice(2,8),state:'going',civ:tg.civ,pvp:tg.pvp,origin:{x:org.x,y:org.y,name:org.name},units,path:marchPath(org.x,sy,c.x,c.y,3),idx:0,prog:0,start:sy*W+org.x};
   toast(`🚩 Your army marches from ${org.name.toLowerCase()==='your capital'?'your capital':org.name} on ${c.name}!`);updHUD();save(true);return true;}
 function sendHome(units,c,org){if(!armyTotal(units)){G.march=null;return;}org=org||{x:G.home.x,y:G.home.y,name:'Your capital'};const sx=c.x,sy=Math.min(H-1,c.y+3),gy=Math.min(H-1,org.y+3);
   G.march={id:Math.random().toString(36).slice(2,8),state:'returning',civ:c.i,pvp:c.pvp,origin:org,units,path:marchPath(sx,sy,org.x,gy,0),idx:0,prog:0,start:sy*W+sx};}
 function allyOf(c){return c.ally!=null?G.alliances.find(a=>a.id===c.ally):null;}
-function sendEnemyAttack(){const cands=G.civs.filter(c=>!c.captured&&!c.taken&&armyTotal(c.army)>=3&&civDist(c)<95);if(!cands.length)return false;
+/* ---- your own alliance membership ---- */
+const myAlly=()=>G&&G.alliances.find(a=>a.me&&a.m.length)||null;
+const isFriend=c=>{const a=myAlly();return !!(a&&c&&c.ally===a.id);};
+const joinCost=al=>({gold:Math.round(60+al.m.reduce((s,i)=>s+35*G.civs[i].lv,0))});
+const formCost=c=>({gold:120+45*c.lv});
+function joinAlliance(al){const mine=myAlly();if(mine){toast(`Leave the ${mine.name} first.`);return;}if(G.march&&G.march.state==='going'&&G.march.civ!=null&&al.m.includes(G.march.civ)){toast('Your army is marching on one of their cities. They will not take you in.');return;}
+  if(G.emarch.some(e=>al.m.includes(e.civ))){toast('One of their armies is marching on you right now. They will not take you in.');return;}
+  const c=joinCost(al);if(!afford(c)){toast(`You need ${costStr(c)} as a gift to join.`);return;}pay(c);al.me=true;updHUD();save(true);
+  showModal(`<h2>🤝 You joined the ${al.name}!</h2><ul><li>Its members <b>will not attack you</b>, and you cannot attack them.</li><li>When someone attacks your city, <b>allied soldiers march in to help</b>.</li><li>Trade brings in <b>+1 gold per member</b> every 3 seconds.</li></ul><p>You can leave any time from 🤝 Alliances.</p>`,[{t:'Great',primary:true}]);}
+function formAlliance(c){if(myAlly()){toast('Leave your alliance first.');return;}if(c.ally!=null){joinAlliance(allyOf(c));return;}
+  if(G.march&&G.march.state==='going'&&G.march.civ===c.i){toast('Your army is marching on them right now!');return;}if(G.emarch.some(e=>e.civ===c.i)){toast('Their army is marching on you right now!');return;}
+  const cost=formCost(c);if(!afford(cost)){toast(`You need ${costStr(cost)} as a gift.`);return;}pay(cost);
+  const al={id:G.alliances.length,name:ALLY_NAMES[G.alliances.length%ALLY_NAMES.length]+(G.alliances.length>=ALLY_NAMES.length?' II':''),m:[c.i],me:true};c.ally=al.id;G.alliances.push(al);updHUD();save(true);
+  showModal(`<h2>🤝 The ${al.name} is born!</h2><p>You and the <b style="color:${c.hex}">${c.name}</b> are now allies. Other civilizations may join you over time.</p><ul><li>They <b>will not attack you</b>, and you cannot attack them.</li><li>When someone attacks your city, <b>they send soldiers to help</b>.</li><li>Trade brings in <b>+1 gold per member</b> every 3 seconds.</li></ul>`,[{t:'Great',primary:true}]);}
+function leaveAlliance(){const al=myAlly();if(!al)return;al.me=false;if(al.m.length<2){for(const i of al.m)G.civs[i].ally=null;al.m=[];}save(true);toast(`You left the ${al.name}.`);}
+function openAlliances(){const mine=myAlly();let h=`<h2>🤝 Alliances</h2>`;
+  if(mine)h+=`<div class="urow"><div class="ic">🤝</div><div class="info"><b>You are in the ${mine.name}</b><br>Members: ${mine.m.map(i=>`<b style="color:${G.civs[i].hex}">${G.civs[i].name}</b>`).join(', ')}<br>They won't attack you, they help defend your city, and trade earns +${mine.m.length} 🪙 every 3s.</div><div class="tb"><button class="btn" id="alLeave">Leave</button></div></div>`;
+  else h+=`<p>Join an alliance by sending its members a gift of gold. Allies won't attack you, they send soldiers when your city is attacked, and trade earns you extra gold.</p>`;
+  const live=G.alliances.filter(a=>a.m.length&&!a.me);
+  if(live.length){h+=`<h3 style="margin:14px 0 6px">Alliances you can join</h3>`;for(const a of live){const c=joinCost(a),d=Math.round(Math.min(...a.m.map(i=>civDist(G.civs[i]))));
+    h+=`<div class="urow"><div class="ic">🛡</div><div class="info"><b>${a.name}</b> · ${a.m.length} member${a.m.length>1?'s':''} · ${d} tiles away<br>${a.m.map(i=>`<span style="color:${G.civs[i].hex}">${G.civs[i].name} ${'★'.repeat(G.civs[i].lv)}</span>`).join(', ')}<br>Gift to join: <b>${costStr(c)}</b></div><div class="tb"><button class="btn${afford(c)&&!mine?' primary':''}" data-join="${a.id}" ${mine?'disabled':''}>Join</button></div></div>`;}}
+  else if(G.time<1200)h+=`<p style="opacity:.8">Rival civilizations haven't formed alliances yet. They start after about 20 minutes (${fmt(1200-G.time)} to go). You can start your own below.</p>`;
+  if(!mine){const free=G.civs.filter(c=>!c.captured&&c.taken==null&&c.ally==null&&G.explored[c.y*W+c.x]).sort((a,b)=>civDist(a)-civDist(b)).slice(0,6);
+    h+=`<h3 style="margin:14px 0 6px">Start your own alliance</h3>`;
+    if(!free.length)h+=`<p style="opacity:.8">Explore the forest to meet civilizations you could ally with.</p>`;
+    else{h+=`<p style="opacity:.8;margin:0 0 6px">Ask a civilization you have explored to ally with you.</p>`;
+      for(const c of free){const k=formCost(c);h+=`<div class="urow"><div class="ic" style="color:${c.hex}">🏰</div><div class="info"><b style="color:${c.hex}">${c.name}</b> ${'★'.repeat(c.lv)} · ${Math.round(civDist(c))} tiles away<br>Gift: <b>${costStr(k)}</b></div><div class="tb"><button class="btn" data-form="${c.i}">Ally</button></div></div>`;}}}
+  showModal(h,[{t:'Close'}]);const md=$('modal');
+  md.querySelectorAll('[data-join]').forEach(b=>b.onclick=()=>{const a=G.alliances.find(a=>a.id===+b.dataset.join);if(a){joinAlliance(a);if(!myAlly())openAlliances();}});
+  md.querySelectorAll('[data-form]').forEach(b=>b.onclick=()=>{formAlliance(G.civs[+b.dataset.form]);if(!myAlly())openAlliances();});
+  if($('alLeave'))$('alLeave').onclick=()=>{leaveAlliance();openAlliances();};}
+function sendEnemyAttack(){const cands=G.civs.filter(c=>!c.captured&&!c.taken&&!isFriend(c)&&armyTotal(c.army)>=3&&civDist(c)<95);if(!cands.length)return false;
   cands.sort((a,b)=>civDist(a)-civDist(b));const c=Math.random()<.5?cands[0]:cands[Math.floor(Math.random()*Math.min(6,cands.length))];
   const force={};for(const t of ARMY_T){const n=Math.ceil((c.army[t]||0)*0.6);force[t]=n;c.army[t]-=n;}
   const al=allyOf(c);const helpers=[];
   if(al){for(const j of al.m){const o=G.civs[j];if(o===c||o.captured||armyTotal(o.army)<3)continue;for(const t of ARMY_T){const n=Math.ceil((o.army[t]||0)*.4);force[t]+=n;o.army[t]-=n;}helpers.push(o.name);if(helpers.length>=2)break;}}
-  const sy=Math.min(H-1,c.y+3);const e={civ:c.i,helpers,units:force,path:marchPath(c.x,sy,G.home.x,G.home.y,3),idx:0,prog:0,start:sy*W+c.x};G.emarch.push(e);reveal(c.x,c.y,5);
+  const sy=Math.min(H-1,c.y+3);const e={id:Math.random().toString(36).slice(2,8),civ:c.i,helpers,units:force,path:marchPath(c.x,sy,G.home.x,G.home.y,3),idx:0,prog:0,start:sy*W+c.x};G.emarch.push(e);reveal(c.x,c.y,5);
   showModal(`<h2>⚠ The <span style="color:${c.hex}">${c.name}</span> ${helpers.length?`and ${helpers.join(' and ')} (${al.name}) are`:'is'} marching on your city!</h2><p>Scouts report <b>${compText(force)}</b>. They will arrive in about <b>${fmt(marchEta(e,ESPD))}</b>.</p>
     <p>Get ready: upgrade your 🏰 walls and weapons, and train soldiers.${G.march?' <b>Your own army is away from home!</b>':''}</p>`,[{t:'Prepare!',primary:true}]);
   return true;}
@@ -567,7 +617,13 @@ function updateCivs(dt){for(const c of G.civs){if(c.captured||c.taken)continue;
   c.growT-=dt;if(c.growT<=0){c.growT=38-c.lv*3;if(armyTotal(c.army)<6+4*c.lv){const pool=['sword','sword','archer'];if(c.lv>=2)pool.push('spear','archer');if(c.lv>=3)pool.push('knight');const t=pool[Math.floor(Math.random()*pool.length)];c.army[t]=(c.army[t]||0)+1;}}
   c.upT-=dt;if(c.upT<=0){c.upT=200+Math.random()*90;if(c.wall<c.lv)c.wall++;else if(c.lv<4)c.lv++;recompute();}}}
 function updateMarches(dt){
-  const m=G.march;if(m){advance(m,dt,MSPD);if(m.idx>=m.path.length){
+  const m=G.march;
+  if(m&&m.kind==='intercept'){const T2=ixResolve(m.tgt);
+    if(!T2){const o=m.origin;G.march=null;sendHome(m.units,{x:Math.round(m.x),y:Math.max(0,Math.round(m.y)-3),i:-1},o);toast('The army you were chasing is gone. Your army turns back.');}
+    else{const dx=T2.x-m.x,dy=T2.y-m.y,d=Math.hypot(dx,dy);
+      if(d<=1.3){const civ={i:-1,field:true,name:T2.civName,fname:T2.name,dest:T2.dest,hex:T2.hex,lv:T2.lv,wall:0,army:Object.assign({},T2.units),x:Math.round(T2.x),y:Math.round(T2.y),tgt:m.tgt};startBattle('attack',civ,m.units,null,m.origin);return true;}
+      const st=Math.min(d,ISPD*dt);m.x+=dx/d*st;m.y+=dy/d*st;m.ang=Math.atan2(dx,dy);}}
+  else if(m){advance(m,dt,MSPD);if(m.idx>=m.path.length){
     if(m.state==='going'){const c=mTarget(m);if(!c||c.captured||c.taken){sendHome(m.units,c||{x:G.home.x,y:G.home.y},m.origin);toast('That city already fell. Your army turns back.');}else{startBattle('attack',c,m.units,null,m.origin);return true;}}
     else{for(const t of ARMY_T)G.army[t]+=m.units[t]||0;G.march=null;toast(`🚩 Your army is back${m.origin&&m.origin.name!=='Your capital'?' at '+m.origin.name:' home'}.`);updHUD();}}}
   for(const e of G.emarch)advance(e,dt,ESPD);
@@ -585,7 +641,7 @@ function updateWorld(dt){
   for(const p of projs){const dx=p.tg.x-p.x,dy=p.tg.y-p.y,d=Math.hypot(dx,dy);if(d<10||p.tg.hp<=0){p.done=true;if(p.tg.hp>0){p.tg.hp-=p.dmg;if(p.tg.hp<=0){G.res.gold+=2;addFloat(p.tg.x,p.tg.y,'+2 🪙','#ffd166');}}}else{p.x+=dx/d*520*dt;p.y+=dy/d*520*dt;}}
   projs=projs.filter(p=>!p.done);
   for(const f of floats){f.t+=dt;}floats=floats.filter(f=>f.t<1.2);
-  timers.gold-=dt;if(timers.gold<=0){timers.gold=3;const g=G.up.mine+2*captured()+(G.city.lv-1);if(g)G.res.gold+=g;}
+  timers.gold-=dt;if(timers.gold<=0){timers.gold=3;const g=G.up.mine+2*captured()+(G.city.lv-1)+(myAlly()?myAlly().m.length:0);if(g)G.res.gold+=g;}
   for(const s of G.stumps){s.t-=dt;if(s.t<=0){if(G.tiles[s.i]===STUMP&&!bAt.has(s.i)&&!overlapsTile(player,s.i)){G.tiles[s.i]=TREE;s.done=true;dirty();}else s.t=8;}}
   G.stumps=G.stumps.filter(s=>!s.done&&G.tiles[s.i]===STUMP);
   timers.explore-=dt;if(timers.explore<=0){timers.explore=.3;reveal(Math.floor(player.x/T),Math.floor(player.y/T),10);}
@@ -721,12 +777,12 @@ function renderWorld(dt){WS.t+=dt;
   renderer.render(WS.scene,cam);
   ctx.clearRect(0,0,VW,VH);
   for(const c of G.civs){if(!G.explored[c.y*W+c.x])continue;const s=toScreen(cam,c.x+.5,3.3,c.y+.5);if(!s)continue;
-    if(c.captured)label(`${c.name} (yours)`,s[0],s[1],'#bcd6ff',13);else if(c.taken!=null)label(`${c.name} (👤 ${(G.others[c.taken]||{}).name||'another player'})`,s[0],s[1],'#eee',13);else{const al=allyOf(c);label(`${c.name}  ${'★'.repeat(c.lv)}`,s[0],s[1]-(al?16:8),'#fff',14);label(`🧱 ${c.wall}  ·  ~${armyTotal(c.army)} soldiers`,s[0],s[1]+(al?1:9),'#ffe2b8',12);if(al)label(`🤝 ${al.name}`,s[0],s[1]+17,'#ffd166',12);}}
+    if(c.captured)label(`${c.name} (yours)`,s[0],s[1],'#bcd6ff',13);else if(c.taken!=null)label(`${c.name} (👤 ${(G.others[c.taken]||{}).name||'another player'})`,s[0],s[1],'#eee',13);else{const al=allyOf(c);label(`${c.name}  ${'★'.repeat(c.lv)}`,s[0],s[1]-(al?16:8),'#fff',14);label(`🧱 ${c.wall}  ·  ~${armyTotal(c.army)} soldiers`,s[0],s[1]+(al?1:9),'#ffe2b8',12);if(al)label(al.me?`🤝 ${al.name} · YOUR ALLY`:`🤝 ${al.name}`,s[0],s[1]+17,al.me?'#7dffb0':'#ffd166',12);}}
   for(const k in G.others){const o=G.others[k],[x,y]=MP_SLOTS[k];if(!G.explored[y*W+x])continue;const s=toScreen(cam,x+.5,3.3,y+.5);if(s){label(`👤 ${o.name}  ★${o.lv||1}  🧱${o.wall||0}`,s[0],s[1],'#fff',14);label(o.online?'🟢 online':'⚪ offline',s[0],s[1]+16,'#ddd',11);}}
   {const s=toScreen(cam,G.home.x+.5,3.0,G.home.y+.5);if(s)label(`Your City  ★${G.city.lv}  🧱${G.city.wall}`,s[0],s[1],'#cfe2ff',13);}
   const ml=[];if(G.march)ml.push([G.march,0]);for(const e of G.emarch)ml.push([e,1]);for(const pm of mpMarches())ml.push([pm,2]);
   for(const [m,side] of ml){const p=marchPos(m);const s=toScreen(cam,p[0],2.3,p[1]);if(!s)continue;const n=armyTotal(m.units);
-    if(side===2)label(`👤 ${m.label} (${n})`,s[0],s[1],'#fff',13);else if(side)label(`⚠ ${G.civs[m.civ].name}${m.helpers&&m.helpers.length?' + allies':''} army (${n}) · ${fmt(marchEta(m,ESPD))}`,s[0],s[1],'#ffb4a8',13);else label(`🚩 Your army (${n}) · ${fmt(marchEta(m,MSPD))}`,s[0],s[1],'#cfe2ff',13);}
+    if(side===2)label(`${m.label.startsWith('⚠')?'':'👤 '}${m.label} (${n})`,s[0],s[1],'#fff',13);else if(side)label(`⚠ ${G.civs[m.civ].name}${m.helpers&&m.helpers.length?' + allies':''} army (${n}) · ${fmt(marchEta(m,ESPD))}`,s[0],s[1],'#ffb4a8',13);else label(m.kind==='intercept'?`⚔ Your army → ${(mTarget(m)||{}).name||'?'} (${n})`:`🚩 Your army (${n}) · ${fmt(marchEta(m,MSPD))}`,s[0],s[1],'#cfe2ff',13);}
   for(const k in G.others){const a=WS.op&&WS.op[k];if(!a||!a.visible)continue;const s=toScreen(cam,a.position.x,1.55,a.position.z);if(s)label(`👤 ${G.others[k].name}`,s[0],s[1],pvpHex(+k),14);}
   if(player.hp<100){const s=toScreen(cam,tx,1.45,tz);if(s)hpBar(s[0],s[1],34,player.hp/100);}
   for(const w of wolves)if(w.hp<w.max){const s=toScreen(cam,w.x/T,1.0,w.y/T);if(s)hpBar(s[0],s[1],28,w.hp/w.max);}
@@ -749,9 +805,12 @@ function drawMini(){if(!G)return;const d=mimg.data;const crgb=G.civs.map(c=>hexR
 /* ================= BATTLE LOGIC ================= */
 const C=16,R=10,OPEN=0,FOREST=1,RCK=2,HILL=3;
 const BLDG=4;const blockT=t=>t===RCK||t===BLDG;
-function genBattleTerrain(kind,lv,nh){const t=new Uint8Array(C*R),rnd=Math.random,bld=[];
+function genBattleTerrain(kind,lv,nh,field){const t=new Uint8Array(C*R),rnd=Math.random,bld=[];
   const blob=(type,n,c0,c1)=>{let c=c0+Math.floor(rnd()*(c1-c0+1)),r=Math.floor(rnd()*R);for(let k=0;k<n;k++){if(t[c+r*C]===OPEN)t[c+r*C]=type;c+=Math.floor(rnd()*3)-1;r+=Math.floor(rnd()*3)-1;c=Math.max(c0,Math.min(c1,c));r=Math.max(0,Math.min(R-1,r));}};
-  const att=kind==='attack',f0=att?1:8,f1=att?8:14;
+  const att=kind==='attack',f0=field?3:att?1:8,f1=field?12:att?8:14;
+  if(field){const nf=3+Math.floor(rnd()*2);for(let i=0;i<nf;i++)blob(FOREST,4+Math.floor(rnd()*4),f0,f1);for(let i=0;i<2;i++)blob(HILL,3,f0,f1);
+    const nr=2+Math.floor(rnd()*3);for(let i=0;i<nr;i++){const c=4+Math.floor(rnd()*8),r=Math.floor(rnd()*R);t[c+r*C]=RCK;}
+    for(let c=0;c<C;c++)for(let r=0;r<R;r++)if((c<=2||c>=13)&&t[c+r*C]!==OPEN)t[c+r*C]=OPEN;return {t,bld};}
   const nf=2+Math.floor(rnd()*2);for(let i=0;i<nf;i++)blob(FOREST,4+Math.floor(rnd()*4),f0,f1);
   for(let i=0;i<2;i++)blob(HILL,3,f0,f1);
   const nr=2+Math.floor(rnd()*2);for(let i=0;i<nr;i++){const c=(att?4:8)+Math.floor(rnd()*4),r=Math.floor(rnd()*R);t[c+r*C]=RCK;}
@@ -776,20 +835,27 @@ function deployEnemy(comp,mult){
 function compText(c){return Object.entries(c||{}).filter(([k,v])=>v>0&&UDEF[k]).map(([k,v])=>`${UDEF[k].icon} ${v} ${v>1?(UDEF[k].name.endsWith('man')?UDEF[k].name.slice(0,-3)+'men':UDEF[k].name+'s'):UDEF[k].name}`).join(', ');}
 function startBattle(kind,civ,units,em,origin){
   const src=kind==='attack'?units:G.army;const pool={turret:0,ballista:0,catapult:0};for(const t of ARMY_T)pool[t]=src[t]||0;
-  if(kind==='defense'&&armyTotal(G.army)+G.up.turret+G.up.ballista+G.up.catapult===0){resolveUndefended(civ,em);return;}
+  const help=[];if(kind==='defense'){const al=myAlly();if(al){let room=10;for(const i of al.m){const o=G.civs[i];if(!o||o.captured||o.taken!=null||room<=0)continue;const sent={};
+    for(const t of ARMY_T){const n=Math.min(room,Math.ceil((o.army[t]||0)*.35));if(n>0){sent[t]=n;o.army[t]-=n;room-=n;}}if(armyTotal(sent))help.push({civ:i,units:sent});}}}
+  if(kind==='defense'&&!help.length&&armyTotal(G.army)+G.up.turret+G.up.ballista+G.up.catapult===0){resolveUndefended(civ,em);return;}
   ENEMY_HEX=civ.hex;player.path=[];player.gather=null;keys={};
-  const gt=genBattleTerrain(kind,kind==='attack'?civ.lv:G.city.lv,kind==='attack'?2+2*civ.lv:2+2*G.up.houses);
+  const gt=genBattleTerrain(kind,kind==='attack'?civ.lv:G.city.lv,kind==='attack'?2+2*civ.lv:2+2*G.up.houses,!!civ.field);
   B={kind,civ,em,pool,units:[],projs:[],fx:[],phase:'deploy',tactic:kind==='defense'?'hold':'charge',speed:1,t:0,lastDmg:0,endT:0,sel:null,terrain:gt.t,bld:gt.bld,uid:0,occ:[],wl:[G.city.wall,civ.wall]};
   const mult=1+0.08*(civ.lv-1);
-  B.origin=origin;let reinfTxt='';if(civ.pvp!=null)B.btId=Math.random().toString(36).slice(2,9);
-  if(kind==='attack'){placeWalls(1,civ.wall,10);const comp=Object.assign({},civ.army);
+  B.origin=origin;B.help=help;let reinfTxt='';if(civ.pvp!=null)B.btId=Math.random().toString(36).slice(2,9);
+  if(kind==='attack'&&civ.field){const comp={};for(const t of ARMY_T)comp[t]=civ.army[t]||0;deployEnemy(comp,mult);B.ecomp=comp;}
+  else if(kind==='attack'){placeWalls(1,civ.wall,10);const comp=Object.assign({},civ.army);
     if(civ.pvp!=null){const wp=civ.weapons||{};const WC={turret:13,ballista:14,catapult:15};for(const w of WEAPONS){const n=Math.min(4,wp[w]||0),rs=rowsFor(n);for(let k=0;k<n;k++)placeNear(w,1,WC[w],rs[k],11,15,mult);}}
     else{comp.turret=Math.min(4,civ.lv);const al=allyOf(civ);B.reinf=[];if(al){for(const j of al.m){const o=G.civs[j];if(o===civ||o.captured)continue;const sent={};for(const t of ARMY_T){const n=Math.ceil((o.army[t]||0)*.3);sent[t]=n;o.army[t]-=n;comp[t]=(comp[t]||0)+n;}if(armyTotal(sent)){B.reinf.push(o.name);}}
       if(B.reinf.length)reinfTxt=`<p>🤝 <b>Reinforcements from the ${al.name}</b> (${B.reinf.join(', ')}) have joined the defenders!</p>`;}}
     deployEnemy(comp,mult);B.ecomp=comp;}
-  else{placeWalls(0,G.city.wall,6);const WC={turret:4,ballista:3,catapult:1};for(const w of WEAPONS){const n=G.up[w]||0,rs=rowsFor(n);for(let k=0;k<n;k++){const u=placeNear(w,0,WC[w],rs[k],0,5);if(u)u.fixed=true;}}deployEnemy(units,mult);}
+  else{placeWalls(0,G.city.wall,6);const WC={turret:4,ballista:3,catapult:1};for(const w of WEAPONS){const n=G.up[w]||0,rs=rowsFor(n);for(let k=0;k<n;k++){const u=placeNear(w,0,WC[w],rs[k],0,5);if(u)u.fixed=true;}}
+    for(const hp of help){const o=G.civs[hp.civ];for(const t of ARMY_T){const n=hp.units[t]||0,rs=rowsFor(n);for(let k=0;k<n;k++){const u=placeNear(t,0,t==='archer'?2:4,rs[k],0,5,1+0.08*(o.lv-1));if(u){u.fixed=true;u.ally=hp.civ;}}}}
+    if(help.length)reinfTxt=`<p>🤝 <b>Your allies came to help!</b> ${help.map(h=>`<span style="color:${G.civs[h.civ].hex}">${G.civs[h.civ].name}</span> (${compText(h.units)})`).join(', ')} are already standing in your zone.</p>`;
+    deployEnemy(units,mult);}
   B.sel=firstAvail();buildBattleScene();mode='battle';buildSel=null;setUI();buildPalette();
-  if(kind==='defense')showModal(`<h2>⚔ The <span style="color:${civ.hex}">${civ.name}</span>${em&&em.helpers&&em.helpers.length?' and allies have':' has'} reached your city!</h2><p>Attackers: <b>${compText(units)}</b>.</p><p>Your <b>${WALL_DESC[G.city.wall].toLowerCase()}</b> ${G.city.wall?'are':'is'} already standing. ${G.up.turret+G.up.ballista+G.up.catapult?`Your weapons (${compText({turret:G.up.turret,ballista:G.up.ballista,catapult:G.up.catapult})}) have set themselves up behind them. `:''}Now choose where your soldiers stand in the blue zone. Guard the gaps!</p>`,[{t:'Set up defenses',primary:true}]);
+  if(kind==='defense')showModal(`<h2>⚔ The <span style="color:${civ.hex}">${civ.name}</span>${em&&em.helpers&&em.helpers.length?' and allies have':' has'} reached your city!</h2><p>Attackers: <b>${compText(units)}</b>.</p><p>Your <b>${WALL_DESC[G.city.wall].toLowerCase()}</b> ${G.city.wall?'are':'is'} already standing. ${G.up.turret+G.up.ballista+G.up.catapult?`Your weapons (${compText({turret:G.up.turret,ballista:G.up.ballista,catapult:G.up.catapult})}) have set themselves up behind them. `:''}Now choose where your soldiers stand in the blue zone. Guard the gaps!</p>${reinfTxt}`,[{t:'Set up defenses',primary:true}]);
+  else if(civ.field)showModal(`<h2>⚔ Your army caught ${civ.fname}!</h2><p>They were marching on <b>${civ.dest}</b>. Enemy soldiers: <b>${compText(B.ecomp)||'none'}</b>.</p><p>This fight is out in the open forest: <b>no walls and no turrets</b>. They will charge straight at you. Set up your troops in the blue zone, then hit FIGHT.</p>`,[{t:'Set up',primary:true}]);
   else showModal(`<h2>🚩 Your army has reached ${civ.pvp!=null?'👤 ':'the '}<span style="color:${civ.hex}">${civ.name}</span></h2><p>Defenders: <b>${compText(B.ecomp)||'none'}</b>${civ.pvp!=null?'':`, ${Math.min(4,civ.lv)} turret${civ.lv>1?'s':''}`}, behind <b>${WALL_DESC[civ.wall].toLowerCase()}</b>.</p>${reinfTxt}<p>Set up your troops in the blue zone, then hit FIGHT. Knights and swordsmen can break through walls, or go for the gaps.</p>`,[{t:'Set up',primary:true}]);}
 function firstAvail(){for(const t of ['sword','spear','archer','knight',...WEAPONS])if(B.pool[t]>0)return t;return null;}
 function resolveUndefended(civ,em){G.emarch=G.emarch.filter(e=>e!==em);for(const t of ARMY_T)civ.army[t]+=em.units[t]||0;
@@ -806,7 +872,7 @@ function autoPlace(){clearPlacement();const zm=zoneMax(),def=B.kind==='defense';
   P('knight',def?1:zm-1,flankRows(B.pool.knight));
   B.sel=firstAvail();buildPalette();}
 function clearPlacement(){for(const u of B.units)if(u.side===0&&!u.fixed)B.pool[u.type]++;B.units=B.units.filter(u=>u.side!==0||u.fixed);B.sel=firstAvail();buildPalette();}
-function holding(u){if(u.aggro)return false;const tac=u.side===0?B.tactic:(B.kind==='attack'?'hold':'charge');if(tac==='charge')return false;
+function holding(u){if(u.aggro)return false;const tac=u.side===0?B.tactic:(B.kind==='attack'&&!B.civ.field?'hold':'charge');if(tac==='charge')return false;
   if(B.t>10&&B.t-B.lastDmg>10){u.aggro=true;return false;}
   for(const o of B.units)if(o.alive&&o.side!==u.side&&o.type!=='wall'&&Math.hypot(o.c-u.c,o.r-u.r)<=4.5){u.aggro=true;return false;}
   return true;}
@@ -873,10 +939,17 @@ function updateBattle(dt){
 function finishBattle(win,retreat){
   if(B.civ&&B.civ.pvp!=null&&B.btId){B.win=!!win;btPush(true);setTimeout(()=>{try{MP.room&&MP.room.battle&&MP.room.battle(null);}catch(e){}},8000);}
   const surv={},lost={},esurv={sword:0,spear:0,archer:0,knight:0};
-  for(const u of B.units){if(u.type==='wall')continue;if(u.side===0){if(u.alive)surv[u.type]=(surv[u.type]||0)+1;else lost[u.type]=(lost[u.type]||0)+1;}else if(u.alive&&ARMY_T.includes(u.type))esurv[u.type]++;}
+  for(const u of B.units){if(u.type==='wall')continue;if(u.side===0&&u.ally!=null){if(u.alive&&G.civs[u.ally])G.civs[u.ally].army[u.type]=(G.civs[u.ally].army[u.type]||0)+1;continue;}if(u.side===0){if(u.alive)surv[u.type]=(surv[u.type]||0)+1;else lost[u.type]=(lost[u.type]||0)+1;}else if(u.alive&&ARMY_T.includes(u.type))esurv[u.type]++;}
   const back={};for(const t of ARMY_T)back[t]=(B.pool[t]||0)+(surv[t]||0);
   const lostTxt=Object.keys(lost).length?compText(lost):'none';const c=B.civ;let html='';
-  if(B.kind==='attack'&&c.pvp!=null){
+  if(B.kind==='attack'&&c.field){const elost={};for(const t of ARMY_T)elost[t]=Math.max(0,(B.ecomp[t]||0)-esurv[t]);const tg=c.tgt;
+    if(tg.ai!=null){const e=G.emarch.find(e=>emId(e)===tg.ai);if(e){if(win)G.emarch=G.emarch.filter(x=>x!==e);else e.units=Object.assign({},esurv);}}
+    else{G.raidsOut.push({id:Math.random().toString(36).slice(2,10),kind:tg.pai!=null?'ixai':'ix',to:+(tg.pai!=null?tg.pai:tg.pvp),eid:tg.eid,mid:tg.mid,win,lost:elost,t:Date.now()});mpPush(true);}
+    const loot=win?{gold:12+8*c.lv}:{};for(const k in loot)G.res[k]+=loot[k];
+    html=win?`<h2>🏆 Ambush complete!</h2><p>You wiped out ${c.fname}${c.dest!=='your city'?` before it could reach ${c.dest}`:' before it reached your walls'}.${loot.gold?` Their dropped gear is worth <b>${costStr(loot)}</b>.`:''}</p>`
+      :retreat?`<h2>🏳 Retreat</h2><p>You broke off the ambush. ${c.fname} lost ${compText(elost)||'no soldiers'} and keeps marching.</p>`:`<h2>💀 The ambush failed</h2><p>${c.fname} beat your army but lost ${compText(elost)||'no soldiers'}. It keeps marching on ${c.dest}.</p>`;
+    sendHome(back,{x:c.x,y:Math.max(0,c.y-3),i:-1},B.origin);html+=armyTotal(back)?`<p>🚩 ${armyTotal(back)} surviving soldiers are marching home.</p>`:`<p>None of your soldiers survived.</p>`;}
+  else if(B.kind==='attack'&&c.pvp!=null){
     const elost={};for(const t of ARMY_T)elost[t]=Math.max(0,(B.ecomp[t]||0)-esurv[t]);const stolen={};if(win)for(const k of ['wood','stone','gold'])stolen[k]=Math.floor(((c.res||{})[k]||0)*.3);
     for(const k in stolen)G.res[k]+=stolen[k];G.raidsOut.push({id:Math.random().toString(36).slice(2,10),to:c.pvp,win,lost:elost,stolen,t:Date.now()});mpPush(true);
     html=win?`<h2>🏆 You raided 👤 ${c.name}!</h2><p>You broke through and carried off <b>${costStr(stolen)||'nothing'}</b>. Their walls were damaged and they lost ${compText(elost)||'no soldiers'}.</p>`:`<h2>💀 👤 ${c.name} held their city</h2><p>They lost ${compText(elost)||'no soldiers'} defending it.</p>`;
@@ -895,7 +968,7 @@ function finishBattle(win,retreat){
   B=null;BS=null;mode='world';unstick();setUI();recompute();updBB();updHUD();save(true);
   const after=()=>{if(!G.won&&captured()>0&&G.civs.every(c=>c.captured||c.taken)){G.won=true;save();showModal(`<h1>👑 You rule the forest!</h1><p>Every rival civilization has fallen to you. You can keep playing as long as you like.</p>`,[{t:'Keep playing',primary:true}]);}};
   showModal(html,[{t:'Continue',primary:true,fn:after}]);}
-function capture(c){c.captured=true;const al=allyOf(c);if(al){al.m=al.m.filter(i=>i!==c.i);c.ally=null;if(al.m.length<2){for(const i of al.m)G.civs[i].ally=null;al.m=[];}}G.buildings.push({t:'outpost',x:c.x,y:c.y});recompute();reveal(c.x,c.y,12);}
+function capture(c){c.captured=true;const al=allyOf(c);if(al){al.m=al.m.filter(i=>i!==c.i);c.ally=null;if(al.m.length<2&&!al.me){for(const i of al.m)G.civs[i].ally=null;al.m=[];}}G.buildings.push({t:'outpost',x:c.x,y:c.y});recompute();reveal(c.x,c.y,12);}
 
 /* ================= BATTLE 3D ================= */
 const S=2;
@@ -906,9 +979,9 @@ function paintField(){const P=48,cw=(C+2*FM)*P,ch=(R+2*FM)*P,c=document.createEl
   g.fillStyle='#5a883d';g.fillRect(0,0,cw,ch);
   for(let k=0;k<2200;k++){const x=rnd()*cw,y=rnd()*ch,r=10+rnd()*50;const gr=g.createRadialGradient(x,y,0,x,y,r);const sh=rnd()<.5?'rgba(40,70,25,':'rgba(120,160,70,';gr.addColorStop(0,sh+(.18+rnd()*.15)+')');gr.addColorStop(1,sh+'0)');g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);}
   const att=B.kind==='attack',x0=att?(10+FM)*P:0,x1=att?cw:(6+FM)*P+P*.5;
-  const gr=g.createLinearGradient(att?x0-P*.6:x1,0,att?x0+P*.3:x1-P*.9,0);gr.addColorStop(0,'rgba(150,130,95,0)');gr.addColorStop(1,'rgba(150,130,95,1)');g.fillStyle=gr;g.fillRect(att?x0-P*.6:x1-P*.9,0,P*1.5,ch);
+  if(!B.civ.field){const gr=g.createLinearGradient(att?x0-P*.6:x1,0,att?x0+P*.3:x1-P*.9,0);gr.addColorStop(0,'rgba(150,130,95,0)');gr.addColorStop(1,'rgba(150,130,95,1)');g.fillStyle=gr;g.fillRect(att?x0-P*.6:x1-P*.9,0,P*1.5,ch);
   g.fillStyle='#968260';g.fillRect(att?x0+P*.3:0,0,att?cw-x0:x1-P*.9,ch);
-  for(let k=0;k<6000;k++){const x=(att?x0:0)+rnd()*(att?cw-x0:x1-P),y=rnd()*ch;g.fillStyle=`rgba(${rnd()<.5?'70,60,45':'190,175,140'},${.15+rnd()*.25})`;g.beginPath();g.ellipse(x,y,3+rnd()*5,2+rnd()*4,rnd()*3,0,7);g.fill();}
+  for(let k=0;k<6000;k++){const x=(att?x0:0)+rnd()*(att?cw-x0:x1-P),y=rnd()*ch;g.fillStyle=`rgba(${rnd()<.5?'70,60,45':'190,175,140'},${.15+rnd()*.25})`;g.beginPath();g.ellipse(x,y,3+rnd()*5,2+rnd()*4,rnd()*3,0,7);g.fill();}}
   // worn path from the field to the gate area
   g.globalCompositeOperation='overlay';g.globalAlpha=.4;g.drawImage(getDetail(),0,0,cw,ch);g.globalAlpha=1;g.globalCompositeOperation='source-over';
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;}
@@ -923,7 +996,7 @@ function buildBattleScene(){
   const gtex=new THREE.CanvasTexture(getDetail());gtex.wrapS=gtex.wrapT=THREE.RepeatWrapping;gtex.repeat.set(12,12);gtex.encoding=THREE.sRGBEncoding;
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(240,240),new THREE.MeshStandardMaterial({color:col('#557f39'),map:gtex,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.06;ground.receiveShadow=true;scene.add(ground);
   const field=new THREE.Mesh(new THREE.PlaneGeometry((C+2*FM)*S,(R+2*FM)*S),new THREE.MeshStandardMaterial({map:paintField(),roughness:1}));field.rotation.x=-Math.PI/2;field.receiveShadow=true;scene.add(field);
-  const cityGround=new THREE.Mesh(new THREE.PlaneGeometry(40,(R+16)*S),M('#8f7c5c',1));cityGround.rotation.x=-Math.PI/2;cityGround.position.set(att?C*S/2+FM*S+20:-C*S/2-FM*S-20,-.04,0);cityGround.receiveShadow=true;scene.add(cityGround);
+  const cityGround=new THREE.Mesh(new THREE.PlaneGeometry(40,(R+16)*S),M('#8f7c5c',1));cityGround.rotation.x=-Math.PI/2;cityGround.position.set(att?C*S/2+FM*S+20:-C*S/2-FM*S-20,-.04,0);cityGround.receiveShadow=true;const FLD=!!B.civ.field;if(!FLD)scene.add(cityGround);
   const hillMat=M('#6a9446',.95);
   const zones=new THREE.Group();scene.add(zones);
   const zb=new THREE.MeshBasicMaterial({color:0x5b9bff,transparent:true,opacity:.22,depthWrite:false}),zr=new THREE.MeshBasicMaterial({color:0xff4444,transparent:true,opacity:.1,depthWrite:false});
@@ -938,9 +1011,9 @@ function buildBattleScene(){
     else{const hs=makeBuilding('house');hs.scale.setScalar(2.1);hs.position.set(cellX(b.c),0,cellZ(b.r));hs.rotation.y=(hash(b.c,b.r)%4)*Math.PI/2;scene.add(hs);}}
   const wallCol2=B.wallCol!=null?B.wallCol:wallCol;if(wl>0){const stone=wl>=3;for(const z of [cellZ(-.6),cellZ(R-.4)]){cyl(scene,.7,1.6+.25*wl,stone?MAT.stone():MAT.wood(),cellX(wallCol2),(1.6+.25*wl)/2,z,14);cone(scene,.85,1,M(hex,.8),cellX(wallCol2),1.6+.25*wl+.5,z,16);}}
   const side=att?1:-1,edge=side*(C*S/2+S);const rnd=mulberry32(Math.floor(Math.random()*1e6));
-  for(let k=0;k<26;k++){const x=edge+side*(2+rnd()*22),z=(rnd()-.5)*(R*S+14);const hs=makeBuilding(rnd()<.85?'house':'barracks');hs.scale.setScalar(2+rnd()*.6);hs.position.set(x,0,z);hs.rotation.y=Math.floor(rnd()*4)*Math.PI/2;scene.add(hs);}
-  {const k=makeKeepModel(lv+1,hex);k.scale.setScalar(1.5);k.position.set(edge+side*14,0,0);scene.add(k);}
-  for(let k=0;k<190;k++){const a=rnd()*Math.PI*2,rr=24+rnd()*42;const x=Math.cos(a)*rr*1.2,z=Math.sin(a)*rr*.95;if(Math.abs(x)<C*S/2+3&&Math.abs(z)<R*S/2+3)continue;if(z>R*S/2+2&&Math.abs(x)<30&&rnd()<.75)continue;if(side*x>C*S/2-6)continue;
+  if(!FLD)for(let k=0;k<26;k++){const x=edge+side*(2+rnd()*22),z=(rnd()-.5)*(R*S+14);const hs=makeBuilding(rnd()<.85?'house':'barracks');hs.scale.setScalar(2+rnd()*.6);hs.position.set(x,0,z);hs.rotation.y=Math.floor(rnd()*4)*Math.PI/2;scene.add(hs);}
+  if(!FLD){const k=makeKeepModel(lv+1,hex);k.scale.setScalar(1.5);k.position.set(edge+side*14,0,0);scene.add(k);}
+  for(let k=0;k<190;k++){const a=rnd()*Math.PI*2,rr=24+rnd()*42;const x=Math.cos(a)*rr*1.2,z=Math.sin(a)*rr*.95;if(Math.abs(x)<C*S/2+3&&Math.abs(z)<R*S/2+3)continue;if(z>R*S/2+2&&Math.abs(x)<30&&rnd()<.75)continue;if(!FLD&&side*x>C*S/2-6)continue;
     if(rnd()<.7)makePine(scene,x,z,1.3+rnd()*.9);else makeOak(scene,x,z,1.3+rnd()*.7);}
   const camera=new THREE.PerspectiveCamera(42,VW/VH,0.1,400);
   const ghostMat=new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:.5});
@@ -989,7 +1062,7 @@ function renderBattle(dt){BS.t+=dt;fitBattleCam();const cam=BS.camera,Sc=BS.scen
   ctx.clearRect(0,0,VW,VH);
   for(const u of B.units){if(!u.alive||u.hp>=u.max)continue;const top=u.type==='turret'?2.7:u.type==='wall'?1.8:u.type==='knight'?2.4:1.75;const s=toScreen(cam,cellX(u.rx),hillY(u.rx,u.ry)+top,cellZ(u.ry));if(s)hpBar(s[0],s[1],36,u.hp/u.max,u.side?'#f87171':'#60a5fa');}
   for(const f of B.fx){const s=toScreen(cam,cellX(f.x),2.0+f.t*1.4,cellZ(f.y));if(!s)continue;ctx.globalAlpha=Math.max(0,1-f.t/0.9);label(f.text,s[0],s[1],f.col,15);ctx.globalAlpha=1;}
-  const ttl=B.spect?`👁 LIVE: 👤 ${B.civ.name} is attacking your city!`:B.kind==='attack'?(B.civ.pvp!=null?`⚔ Storming 👤 ${B.civ.name}'s city`:`⚔ Storming the ${B.civ.name} city`):`🛡 The ${B.civ.name} attacks your city!`;
+  const ttl=B.spect?`👁 LIVE: 👤 ${B.civ.name} is attacking your city!`:B.civ.field?`⚔ Intercepting ${B.civ.fname}`:B.kind==='attack'?(B.civ.pvp!=null?`⚔ Storming 👤 ${B.civ.name}'s city`:`⚔ Storming the ${B.civ.name} city`):`🛡 The ${B.civ.name} attacks your city!`;
   const pc=B.units.filter(u=>u.alive&&u.side===0&&u.type!=='wall').length,ec=B.units.filter(u=>u.alive&&u.side===1&&u.type!=='wall').length;
   label(ttl,VW/2,16,'#fff',17);label(`🔵 You: ${pc}    Enemy: ${ec}`+(B.phase==='deploy'?'    (setting up)':B.phase==='watch'?'    (they are setting up)':B.phase==='fight'?'':(B.win?'    VICTORY!':'    DEFEAT')),VW/2,36,'#e6eef8',13);
   if(B.phase==='over')label(B.win?'🏆 VICTORY!':'💀 DEFEAT',VW/2,VH*.35,B.win?'#ffd166':'#ff8080',44);}
@@ -1027,7 +1100,7 @@ function renderTitle(dt){if(!TS)buildTitleScene();TS.t+=dt;const c=TS.camera;c.a
 function setUI(){const w=mode==='world',b=mode==='battle';
   $('hud').classList.toggle('hide',!w);$('buildbar').classList.toggle('hide',!w);$('minimap').classList.toggle('hide',!w);$('bpanel').classList.toggle('hide',!b);}
 function makeBuildBar(){const bar=$('buildbar');bar.innerHTML='';
-  for(const [key,ic,name,sub,fn] of [['C','🏰','Upgrades','city, walls, barracks, weapons',()=>openCity()],['T','🎖','Army','train soldiers',()=>openArmy()],['M','🚩','March','attack a kingdom',()=>openMarch()]]){
+  for(const [key,ic,name,sub,fn] of [['C','🏰','Upgrades','city, walls, barracks, weapons',()=>openCity()],['T','🎖','Army','train soldiers',()=>openArmy()],['M','🚩','March','attack or intercept',()=>openMarch()],['L','🤝','Alliances','join or form one',()=>openAlliances()]]){
     const b=document.createElement('button');b.className='bb';b.style.minWidth='120px';b.innerHTML=`<span class="key">${key}</span><span class="ic">${ic}</span><b>${name}</b><div class="cost">${sub}</div>`;b.onclick=()=>{if(!paused)fn();};bar.appendChild(b);}}
 function selBuild(k){if(k!=='remove'&&BLD[k].forge>G.up.forge){toast(`${BLD[k].icon} ${BLD[k].name} needs Forge level ${BLD[k].forge}. Upgrade it in 🏰 City.`);return;}buildSel=buildSel===k?null:k;updBB();if(buildSel&&buildSel!=='remove')toast(`${BLD[k].icon} ${BLD[k].name}: ${BLD[k].desc} Tap inside your blue territory.`);else if(buildSel==='remove')toast('Tap a weapon to remove it.');}
 function updBB(){if(!G)return;document.querySelectorAll('.bb').forEach(b=>{const k=b.dataset.k;b.classList.toggle('sel',buildSel===k);if(BLD[k]){const locked=BLD[k].forge>G.up.forge;b.classList.toggle('na',locked||!afford(BLD[k].cost));b.querySelector('.cost').textContent=locked?`🔒 Forge ${BLD[k].forge}`:costStr(BLD[k].cost);}});}
@@ -1074,22 +1147,27 @@ function openMarch(tg,fromId){if(fromId!=null)mFrom=fromId;const orgs=origins();
   let h=`<h2>🚩 March to war</h2>`;
   if(G.march)h+=`<p>Your army is ${G.march.state==='going'?'marching on '+((mTarget(G.march)||{}).name||'?'):'on its way back'} (${fmt(marchEta(G.march,MSPD))}). Only one army can march at a time.</p>`;
   if(orgs.length>1&&!G.march){h+=`<p style="margin-bottom:4px"><b>Launch from:</b></p><div style="display:flex;flex-wrap:wrap;gap:6px">`;for(const o of orgs)h+=`<button class="btn${o.id===mFrom?' primary':''}" data-from="${o.id}" style="padding:5px 10px;font-size:13px">${o.id===-1?'🏰 ':'🚩 '}${o.name}</button>`;h+=`</div>`;}
-  if(msel&&!G.march){const c=msel.tg.pvp!=null?pvpCiv(msel.tg.pvp):G.civs[msel.tg.civ];if(c){const d=Math.round(civDist(c,org));h+=`<h3 style="margin:14px 0 6px">Send to ${c.pvp!=null?'👤 ':'the '}<span style="color:${c.hex}">${c.name}</span> <span style="opacity:.7;font-weight:normal;font-size:13px">· ${d} tiles from ${org.id===-1?'your capital':org.name} · about ${fmt(d*1.25/MSPD)}</span></h3>`;
+  if(msel&&!G.march){const IX=msel.tg.ix?ixResolve(msel.tg.ix):null;if(msel.tg.ix&&!IX)msel=null;}
+  if(msel&&!G.march){const IX=msel.tg.ix?ixResolve(msel.tg.ix):null;const c=IX?{name:IX.name,hex:IX.hex,x:IX.x,y:IX.y}:msel.tg.pvp!=null?pvpCiv(msel.tg.pvp):G.civs[msel.tg.civ];if(c){const d=Math.round(civDist(c,org));h+=IX?`<h3 style="margin:14px 0 6px">⚔ Intercept <span style="color:${IX.hex}">${IX.name}</span> <span style="opacity:.7;font-weight:normal;font-size:13px">· heading for ${IX.dest} · ${compText(IX.units)||'?'} · ${d} tiles from ${org.id===-1?'your capital':org.name}</span></h3><p style="opacity:.8;margin:0 0 6px">Your army runs ${ISPD>MSPD?'faster than a normal march':'at full speed'} and fights them in the open: no walls, no turrets.</p>`:`<h3 style="margin:14px 0 6px">Send to ${c.pvp!=null?'👤 ':'the '}<span style="color:${c.hex}">${c.name}</span> <span style="opacity:.7;font-weight:normal;font-size:13px">· ${d} tiles from ${org.id===-1?'your capital':org.name} · about ${fmt(d*1.25/MSPD)}</span></h3>`;
     for(const t of ARMY_T){if(!G.army[t])continue;h+=`<div class="urow" style="padding:5px 8px"><div class="ic" style="font-size:22px">${UDEF[t].icon}</div><div class="info"><b>${UDEF[t].name}</b> · ${msel.units[t]} of ${G.army[t]}</div><div style="display:flex;gap:4px"><button class="btn" data-dec="${t}">−</button><button class="btn" data-inc="${t}">+</button><button class="btn" data-all="${t}">All</button></div></div>`;}
     if(!armyHome())h+=`<p class="lock">You have no soldiers available. Train some with 🎖 Army.</p>`;
     const left=armyHome()-armyTotal(msel.units);h+=`<p style="opacity:.8">${left?`${left} soldier${left>1?'s':''} will stay home to guard your capital.`:'⚠ Nobody will stay home. Only your weapons and walls will guard your capital!'}</p>`;}}
+  const IXL=ixTargets();if(IXL.length){h+=`<h3 style="margin:14px 0 6px">⚔ Intercept an army <span style="opacity:.7;font-weight:normal;font-size:13px">(catch it on the march, before it reaches its target)</span></h3>`;
+    IXL.forEach(([t,r],n)=>{const d=Math.round(Math.hypot(r.x-org.x,r.y-org.y)),on=msel&&msel.tg.ix&&JSON.stringify(msel.tg.ix)===JSON.stringify(t);
+      h+=`<div class="urow"><div class="ic" style="color:${r.hex}">⚔</div><div class="info"><b style="color:${r.hex}">${r.name}</b> → ${r.dest}<br>${compText(r.units)||'unknown size'} · ${d} tiles away</div><div class="tb"><button class="btn${r.dest==='your city'?' primary':''}" data-ix="${n}" ${G.march?'disabled':''}>${on?'✔ Target':'Intercept'}</button></div></div>`;});}
   const others=Object.keys(G.others);if(others.length){h+=`<h3 style="margin:14px 0 6px">👤 Other players</h3>`;for(const k of others){const o=G.others[k],[x,y]=MP_SLOTS[k],d=Math.round(Math.hypot(x-org.x,y-org.y));
     h+=`<div class="urow"><div class="ic">👤</div><div class="info"><b style="color:${pvpHex(+k)}">${o.name}</b> ${o.online?'🟢':'⚪'} · City ★${o.lv||1} · 🧱 ${o.wall||0}<br>Garrison ~${armyTotal(o.army)} soldiers · ${d} tiles away</div><div class="tb"><button class="btn" data-pvp="${k}" ${G.march?'disabled':''}>${msel&&msel.tg.pvp==k?'✔ Target':'Choose'}</button></div></div>`;}}
   const list=G.civs.filter(c=>!c.captured&&c.taken==null).sort((a,b)=>civDist(a,org)-civDist(b,org));const shown=mShowAll?list:list.slice(0,10);
   h+=`<h3 style="margin:14px 0 6px">Rival civilizations <span style="opacity:.7;font-weight:normal;font-size:13px">(${list.length} left, nearest first)</span></h3>`;
   for(const c of shown){const d=Math.round(civDist(c,org)),al=allyOf(c),known=G.explored[c.y*W+c.x];
     h+=`<div class="urow"><div class="ic" style="color:${c.hex}">🏰</div><div class="info"><b style="color:${c.hex}">${c.name}</b> · City ${'★'.repeat(c.lv)} · 🧱 ${c.wall}${al?` · 🤝 ${al.name}`:''}<br>${known?`~${armyTotal(c.army)} soldiers: ${compText(c.army)||'none'}`:'Unexplored: scouts have no report yet'}<br>${d} tiles away · about ${fmt(d*1.25/MSPD)} to march</div>
-    <div class="tb"><button class="btn" data-pick="${c.i}" ${G.march?'disabled':''}>${msel&&msel.tg.civ===c.i?'✔ Target':'Choose'}</button></div></div>`;}
+    <div class="tb">${isFriend(c)?'<span style="color:#ffd166;font-size:13px">🤝 Ally</span>':`<button class="btn" data-pick="${c.i}" ${G.march?'disabled':''}>${msel&&msel.tg.civ===c.i?'✔ Target':'Choose'}</button>`}</div></div>`;}
   if(list.length>10)h+=`<button class="btn" id="mAll" style="margin-top:6px">${mShowAll?'Show nearest 10':'Show all '+list.length}</button>`;
   const btns=[{t:'Close'}];if(msel&&!G.march&&armyTotal(msel.units))btns.unshift({t:'🚩 March!',primary:true,fn:()=>{if(sendArmy(msel.tg,msel.units,org))msel=null;}});
   showModal(h,btns);
   const md=$('modal');md.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{msel={tg:{civ:+b.dataset.pick},units:Object.assign({},G.army)};openMarch();});
   md.querySelectorAll('[data-pvp]').forEach(b=>b.onclick=()=>{msel={tg:{pvp:+b.dataset.pvp},units:Object.assign({},G.army)};openMarch();});
+  md.querySelectorAll('[data-ix]').forEach(b=>b.onclick=()=>{const e=IXL[+b.dataset.ix];if(e){msel={tg:{ix:e[0]},units:Object.assign({},G.army)};openMarch();}});
   md.querySelectorAll('[data-from]').forEach(b=>b.onclick=()=>{mFrom=+b.dataset.from;openMarch();});
   if($('mAll'))$('mAll').onclick=()=>{mShowAll=!mShowAll;openMarch();};
   md.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{const t=b.dataset.dec;msel.units[t]=Math.max(0,msel.units[t]-1);openMarch();});
@@ -1112,6 +1190,7 @@ function worldClick(x,y,btn){if(btn===2){buildSel=null;updBB();return;}
   const h=pickGround(WS.camera,x,y);if(!h)return;const tx=Math.floor(h.x),ty=Math.floor(h.z);if(tx<0||ty<0||tx>=W||ty>=H)return;
   if(buildSel==='remove'){removeAt(tx,ty);return;}
   if(buildSel){placeBuilding(buildSel,tx,ty);return;}
+  {let best=null,bd=1.8;for(const [t,r] of ixTargets()){const d=Math.hypot(r.x-h.x,r.y-h.z);if(d<bd){bd=d;best=t;}}if(best){openMarch(G.march?null:{ix:best});return;}}
   for(const dy of [0,1,2]){if(ty+dy>=H)continue;const i=(ty+dy)*W+tx;const cm=cmask[i];
     if(cm===OWN){openCity();return;}if(cm>=100){openMarch({pvp:cm-100});return;}if(cm>=0&&G.explored[i]){const c=G.civs[cm];if(c.captured&&!G.march){openMarch(null,c.i);return;}openMarch(c.captured||c.taken!=null?null:{civ:cm});return;}
     if((G.tiles[i]===TREE||G.tiles[i]===ROCK)&&G.explored[i]){setGather(i);return;}}
@@ -1134,7 +1213,7 @@ addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight
   if(paused)return;
   keys[e.code]=true;
   if(mode==='world'){if(e.code==='KeyE'){const n=nearestRes(null,2);if(n!=null)setGather(n);else toast('Nothing to gather next to you.');}
-    else if(e.code==='KeyC')openCity();else if(e.code==='KeyM')openMarch();else if(e.code==='KeyT')openArmy();else if(e.code==='KeyH')openHelp();
+    else if(e.code==='KeyC')openCity();else if(e.code==='KeyM')openMarch();else if(e.code==='KeyL')openAlliances();else if(e.code==='KeyT')openArmy();else if(e.code==='KeyH')openHelp();
     else if(e.code==='Equal'||e.code==='NumpadAdd')WS.zoom=Math.max(.5,WS.zoom/1.15);else if(e.code==='Minus'||e.code==='NumpadSubtract')WS.zoom=Math.min(1.8,WS.zoom*1.15);}
   else if(mode==='battle'&&B){if(e.code==='Space'&&B.phase==='deploy'&&B.units.some(u=>u.side===0&&u.type!=='wall'))startFight();}});
 addEventListener('keyup',e=>{keys[e.code]=false;});
@@ -1142,6 +1221,7 @@ addEventListener('blur',()=>{keys={};});
 $('btnCity').onclick=()=>{if(!paused)openCity();};
 $('btnArmy').onclick=()=>{if(!paused)openArmy();};
 $('btnMarch').onclick=()=>{if(!paused)openMarch();};
+$('btnAlly').onclick=()=>{if(!paused)openAlliances();};
 $('btnHelp').onclick=()=>{if(!paused)openHelp();};
 addEventListener('beforeunload',()=>{if(mode==='world')save(true);});
 addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='world')save(true);});
@@ -1156,18 +1236,30 @@ function pvpCiv(k){const o=G.others[k];if(!o)return null;const [x,y]=MP_SLOTS[k]
 function mpMarches(){const out=[];if(!G||!G.mp)return out;for(const k in G.others){const o=G.others[k],m=o.march;if(!o.online||!m)continue;
   const L=Math.max(1,Math.round(Math.hypot(m.t[0]-m.o[0],m.t[1]-m.o[1])));const f=Math.min(1,m.f+((Date.now()-o.seenAt)/1000)*MSPD/L);
   const cx=Math.round(m.o[0]+(m.t[0]-m.o[0])*f),cy=Math.round(m.o[1]+(m.t[1]-m.o[1])*f),key=k+(m.id||'')+m.s;const obj=MP.mobj[key]||(MP.mobj[key]={});
-  Object.assign(obj,{path:[Math.round(m.t[1])*W+Math.round(m.t[0])],start:Math.max(0,Math.min(H-1,cy))*W+Math.max(0,Math.min(W-1,cx)),idx:0,prog:0,units:m.u||{},hex:pvpHex(+k),label:`${o.name}'s army${m.pvp===G.mp.slot&&m.s==='going'?' → YOU':''}`,atMe:m.pvp===G.mp.slot&&m.s==='going',key});out.push(obj);}return out;}
+  Object.assign(obj,{path:[Math.round(m.t[1])*W+Math.round(m.t[0])],start:Math.max(0,Math.min(H-1,cy))*W+Math.max(0,Math.min(W-1,cx)),idx:0,prog:0,units:m.u||{},hex:pvpHex(+k),label:`${o.name}'s army${m.pvp===G.mp.slot&&m.s==='going'?' → YOU':''}`,atMe:m.pvp===G.mp.slot&&m.s==='going',key,ix:m.s==='going'&&m.id?{pvp:k,mid:m.id}:null});out.push(obj);}
+  for(const k in G.others){const o=G.others[k];if(!o.online)continue;for(const a of (o.em||[])){const c=G.civs[a.civ];if(!c)continue;const p=pvpEmPos(o,a),key='e'+k+a.id;const obj=MP.mobj[key]||(MP.mobj[key]={});
+    const cx=Math.max(0,Math.min(W-1,Math.round(p[0]))),cy=Math.max(0,Math.min(H-1,Math.round(p[1])));
+    Object.assign(obj,{path:[Math.round(a.t[1])*W+Math.round(a.t[0])],start:cy*W+cx,idx:0,prog:0,units:a.u||{},hex:c.hex,label:`⚠ ${c.name} → ${o.name}`,key,ix:{pai:k,eid:a.id}});out.push(obj);}}
+  return out;}
 function mpState(){const m=G.march;return {v:3,code:G.mp.code,seed:G.seed,slot:G.mp.slot,name:G.mp.name,lv:G.city.lv,wall:G.city.wall,weapons:{turret:G.up.turret,ballista:G.up.ballista,catapult:G.up.catapult},
   army:G.army,res:{wood:G.res.wood|0,stone:G.res.stone|0,gold:G.res.gold|0},cap:G.civs.filter(c=>c.captured).map(c=>c.i),
-  march:m?{id:m.id,s:m.state,pvp:m.pvp,o:[...marchPos(m).slice(0,2)],t:m.state==='going'?[(mTarget(m)||{x:0}).x,(mTarget(m)||{y:0}).y]:[m.origin.x,m.origin.y],f:0,u:m.units}:null,raids:G.raidsOut.slice(-4),p:[Math.round(player.x/T*10)/10,Math.round(player.y/T*10)/10,Math.round(player.ang*100)/100,player.moving||player.working?1:0]};}
+  march:m?{id:m.id,s:m.state,pvp:m.pvp,o:[...marchPos(m).slice(0,2)],t:m.state==='going'?[(mTarget(m)||{x:0}).x,(mTarget(m)||{y:0}).y]:[m.origin.x,m.origin.y],f:0,u:m.units}:null,em:G.emarch.slice(0,3).map(e=>{const p=marchPos(e);return {id:emId(e),civ:e.civ,x:Math.round(p[0]*10)/10,y:Math.round(p[1]*10)/10,t:[G.home.x+.5,G.home.y+.5],u:e.units};}),raids:G.raidsOut.slice(-4),p:[Math.round(player.x/T*10)/10,Math.round(player.y/T*10)/10,Math.round(player.ang*100)/100,player.moving||player.working?1:0]};}
 function mpPush(force){if(!MP.room||!G||!G.mp)return;const st=mpState();const j=JSON.stringify(st);if(!force&&j===MP.last)return;MP.last=j;MP.room.presence({st}).catch(()=>{});}
 function mpTick(dt){if(!G.mp)return;MP.pushT-=dt;MP.hb=(MP.hb||0)-dt;if(MP.pushT<=0){MP.pushT=.4;if(MP.hb<=0){MP.hb=8;mpPush(true);}else mpPush();for(const k in G.others)G.others[k].online=!!MP.seen[k]&&Date.now()-MP.seen[k]<15000;}}
 function mpHandlePeers(peers){if(!G||!G.mp)return;let changed=false;
   for(const p of peers){if(p.sameTab)continue;const st=p.presence&&p.presence.st;if(!st||st.v!==3||st.code!==G.mp.code||st.slot===G.mp.slot||st.slot==null||st.slot<0||st.slot>3)continue;
     const k=st.slot;MP.seen[k]=Math.min(Date.now(),+(p.presence.t||Date.now()));const name=String(st.name||'Player').slice(0,20);if(!G.others[k])changed=true;
-    const pp=Array.isArray(st.p)&&st.p.length>=4?st.p.map(Number):null;G.others[k]={pos:pp,name,lv:+st.lv||1,wall:+st.wall||0,weapons:st.weapons||{},army:st.army||{},res:st.res||{},march:st.march||null,online:Date.now()-MP.seen[k]<15000,seenAt:MP.seen[k]};
+    const pp=Array.isArray(st.p)&&st.p.length>=4?st.p.map(Number):null;G.others[k]={pos:pp,name,lv:+st.lv||1,wall:+st.wall||0,weapons:st.weapons||{},army:st.army||{},res:st.res||{},march:st.march||null,em:Array.isArray(st.em)?st.em:[],online:Date.now()-MP.seen[k]<15000,seenAt:MP.seen[k]};
     for(const i of (st.cap||[])){const c=G.civs[i];if(c&&!c.captured&&c.taken==null){c.taken=k;c.ally=null;changed=true;}}
     for(const r of (st.raids||[])){if(r.to!==G.mp.slot||G.mpDone.includes(r.id))continue;G.mpDone.push(r.id);
+      if(r.kind==='ix'){const m=G.march;if(m&&m.id===r.mid){for(const t of ARMY_T)m.units[t]=Math.max(0,(m.units[t]||0)-((r.lost||{})[t]|0));
+          if(r.win||!armyTotal(m.units)){G.march=null;showModal(`<h2>💀 👤 ${name} ambushed your army!</h2><p>Their soldiers caught your army on the march and destroyed it before it reached its target.</p>`,[{t:'OK',primary:true}]);}
+          else showModal(`<h2>⚔ 👤 ${name} ambushed your army!</h2><p>Your army fought them off and keeps marching, but lost ${compText(r.lost)||'no soldiers'}.</p>`,[{t:'OK',primary:true}]);}
+        changed=true;continue;}
+      if(r.kind==='ixai'){const e=G.emarch.find(e=>emId(e)===r.eid);if(e){const c=G.civs[e.civ];
+          if(r.win){G.emarch=G.emarch.filter(x=>x!==e);showModal(`<h2>🤝 👤 ${name} saved you!</h2><p>Their army intercepted the <b style="color:${c.hex}">${c.name}</b> army that was marching on your city and wiped it out.</p>`,[{t:'Nice!',primary:true}]);}
+          else{for(const t of ARMY_T)e.units[t]=Math.max(0,(e.units[t]||0)-((r.lost||{})[t]|0));if(!armyTotal(e.units))G.emarch=G.emarch.filter(x=>x!==e);toast(`⚔ 👤 ${name} attacked the ${c.name} army marching on you. It lost ${compText(r.lost)||'no soldiers'}.`);}}
+        changed=true;continue;}
       for(const t of ARMY_T)G.army[t]=Math.max(0,G.army[t]-((r.lost||{})[t]|0));for(const kk of ['wood','stone','gold'])G.res[kk]=Math.max(0,G.res[kk]-((r.stolen||{})[kk]|0));
       if(r.win&&G.city.wall>0)G.city.wall--;
       showModal(r.win?`<h2>🔥 👤 ${name} raided your city!</h2><p>Their army broke through and carried off <b>${costStr(r.stolen)||'nothing'}</b>. You lost ${compText(r.lost)||'no soldiers'}${G.city.wall>=0?' and your walls were damaged':''}.</p>`:`<h2>🛡 You held off 👤 ${name}!</h2><p>Their army attacked your city and was beaten. You lost ${compText(r.lost)||'no soldiers'}.</p>`,[{t:'OK',primary:true}]);changed=true;}
