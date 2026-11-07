@@ -168,10 +168,10 @@ function syncWeapons(){G.buildings=G.buildings.filter(b=>!WEAPONS.includes(b.t))
 const upDesc=(k,l)=>{const d=UPG[k].desc;return typeof d==='function'?d(l):d[l];};
 const RICON={wood:'🪵',stone:'🪨',gold:'🪙'};
 const UDEF={
-  sword:{name:'Swordsman',icon:'⚔️',hp:110,atk:14,range:1,cd:0.9,move:0.45,cost:{gold:8,wood:2},req:{barracks:1},bonus:{spear:1.4},desc:'Solid all-rounder. Strong vs Spearmen.'},
-  spear:{name:'Spearman',icon:'🔱',hp:100,atk:12,range:1,cd:1.0,move:0.5,cost:{gold:8,wood:4},req:{barracks:1},bonus:{knight:2.5},desc:'Crushes Knights (x2.5 damage).'},
-  archer:{name:'Archer',icon:'🏹',hp:60,atk:11,range:4.5,cd:1.2,move:0.55,ranged:true,cost:{gold:10,wood:6},req:{barracks:2},bonus:{sword:1.25,spear:1.25},desc:'Shoots from range. Extra range on hills.'},
-  knight:{name:'Knight',icon:'🐎',hp:170,atk:20,range:1,cd:1.0,move:0.27,cost:{gold:22,stone:4},req:{stable:1},bonus:{archer:1.7,turret:1.3,ballista:1.3,catapult:1.5},desc:'Fast and tough. Hunts Archers. Weak to Spears.'},
+  sword:{name:'Swordsman',icon:'⚔️',hp:110,atk:14,range:1,cd:0.9,move:0.45,cost:{gold:15},req:{barracks:1},bonus:{spear:1.4},desc:'Solid all-rounder. Strong vs Spearmen.'},
+  spear:{name:'Spearman',icon:'🔱',hp:100,atk:12,range:1,cd:1.0,move:0.5,cost:{gold:15},req:{barracks:1},bonus:{knight:2.5},desc:'Crushes Knights (x2.5 damage).'},
+  archer:{name:'Archer',icon:'🏹',hp:60,atk:11,range:4.5,cd:1.2,move:0.55,ranged:true,cost:{gold:20},req:{barracks:2},bonus:{sword:1.25,spear:1.25},desc:'Shoots from range. Extra range on hills.'},
+  knight:{name:'Knight',icon:'🐎',hp:170,atk:20,range:1,cd:1.0,move:0.27,cost:{gold:35},req:{stable:1},bonus:{archer:1.7,turret:1.3,ballista:1.3,catapult:1.5},desc:'Fast and tough. Hunts Archers. Weak to Spears.'},
   turret:{name:'Arrow Tower',icon:'🗼',hp:220,atk:13,range:5.5,cd:1.1,static:true,ranged:true,bonus:{},desc:'Can\'t move. Shoots anything in range.'},
   ballista:{name:'Ballista',icon:'🎯',hp:160,atk:26,range:7,cd:2.2,static:true,ranged:true,bonus:{knight:1.6},desc:'Long range, big hits. Great against Knights.'},
   catapult:{name:'Catapult',icon:'☄️',hp:140,atk:22,range:8,cd:3.2,static:true,ranged:true,splash:true,bonus:{wall:2},desc:'Very long range. Boulders hurt everyone around the target.'},
