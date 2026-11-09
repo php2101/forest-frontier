@@ -225,7 +225,9 @@ function crenels(g,w,d,y,mat,s){s=s||.16;const pts=[];const nx=Math.max(2,Math.r
   for(let i=1;i<nz-1;i++){const z=-d/2+s/2+i*(d-s)/(nz-1);pts.push([-w/2+s/2,z],[w/2-s/2,z]);}
   for(const [x,z] of pts)box(g,s,s*1.1,s,mat,x,y,z);}
 function flag(g,x,y,z,h,hs){const hex=typeof hs==='string'?hs:teamHex(hs);cyl(g,.022,h,MAT.dwood(),x,y+h/2,z,6);const f=box(g,.02,.22,.34,M(hex,.85),x,y+h-.13,z+.18);f.castShadow=false;return f;}
-function makeTurretHead(side,s){const head=new THREE.Group();s=s||1;box(head,.3*s,.2*s,.32*s,MAT.dwood(),0,.1*s,0);cyl(head,.05*s,.65*s,MAT.metal(),0,.14*s,.3*s,8,Math.PI/2,0,0);box(head,.62*s,.05*s,.06*s,MAT.wood(),0,.18*s,.12*s);cone(head,.08*s,.22*s,M(teamHex(side)),0,.34*s,-.06*s,6);return head;}
+function makeTurretHead(side,s){const head=new THREE.Group();s=s||1;
+  const a=makeUnit('archer',side);a.scale.setScalar(.62*s);head.add(a);const U=a.userData;if(U.armL)U.armL.rotation.x=-1.2;if(U.armR)U.armR.rotation.x=-1.0;
+  a.traverse(o=>{if(o.isMesh)o.castShadow=true;});return head;}
 function makeFire(g,x,y,z){for(const r of [.5,-.5])box(g,.32,.05,.05,MAT.dwood(),x,y+.03,z,0,r,0);const fl=cone(g,.09,.26,M('#ffb347',1,0,{emissive:'#ff7a1a',emissiveIntensity:2.5}),x,y+.16,z,6);fl.castShadow=false;
   const pl=new THREE.PointLight(col('#ff8a3a'),1.4,5,2);pl.position.set(x,y+.5,z);g.add(pl);g.userData.flame=fl;g.userData.light=pl;}
 function makeBuilding(t){const g=new THREE.Group();const st=MAT.stone(),wd=MAT.wood(),dw=MAT.dwood();
@@ -236,7 +238,7 @@ function makeBuilding(t){const g=new THREE.Group();const st=MAT.stone(),wd=MAT.w
     case 'mine':part(g,GEO.dode,MAT.dstone(),.55,.4,.5,0,.2,-.12,0,.3,0);box(g,.07,.48,.07,wd,-.18,.24,.28);box(g,.07,.48,.07,wd,.18,.24,.28);box(g,.48,.07,.09,wd,0,.48,.28);box(g,.28,.36,.04,M('#111',1),0,.18,.27);
       box(g,.24,.14,.17,wd,.32,.12,.4);for(let k=0;k<3;k++)sph(g,.05,MAT.gold(),.27+k*.05,.22,.38+(k%2)*.04);break;
     case 'stable':box(g,.9,.45,.58,wd,0,.225,-.12);box(g,1.0,.06,.78,M('#5a3a26'),0,.5,-.08,.18,0,0);box(g,.26,.16,.2,MAT.hay(),.3,.08,.33);for(let i=0;i<5;i++)box(g,.05,.26,.05,wd,-.4+i*.2,.13,.43);box(g,.86,.04,.04,wd,0,.21,.43);box(g,.86,.04,.04,wd,0,.1,.43);break;
-    case 'ballista':{box(g,.7,.12,.7,dw,0,.06,0);const head=new THREE.Group();head.position.y=.12;g.add(head);box(head,.12,.28,.12,wd,0,.14,0);box(head,.16,.1,.8,wd,0,.32,0);
+    case 'ballista':{box(g,.78,.1,.62,dw,0,.2,0);for(const x of [-.4,.4])for(const z of [-.24,.24])cyl(g,.15,.06,wd,x,.15,z,12,0,0,Math.PI/2);const head=new THREE.Group();head.position.y=.25;g.add(head);box(head,.12,.28,.12,wd,0,.14,0);box(head,.16,.1,.8,wd,0,.32,0);
       part(head,GEO.bow,dw,.42,.42,.42,0,.34,.22,Math.PI/2,0,0);cyl(head,.025,.75,MAT.metal(),0,.38,.08,6,Math.PI/2,0,0);cone(head,.05,.12,MAT.metal(),0,.38,.5,6).rotation.x=Math.PI/2;g.userData.head=head;break;}
     case 'catapult':{const head=new THREE.Group();g.add(head);for(const x of [-.25,.25]){box(head,.08,.12,.8,dw,x,.18,0);for(const z of [-.28,.28])cyl(head,.13,.06,wd,x*1.25,.13,z,10,0,0,Math.PI/2);}
       box(head,.58,.08,.12,dw,0,.22,-.15);box(head,.06,.4,.06,wd,-.2,.42,0);box(head,.06,.4,.06,wd,.2,.42,0);box(head,.46,.06,.06,wd,0,.6,0);
@@ -1181,8 +1183,7 @@ function renderBattle(dt){BS.t+=dt;fitBattleCam();const cam=BS.camera,Sc=BS.scen
     if(!u.alive&&(U0.wall||U0.weapon||u.type==='turret'))g.scale.y=Math.max(.05,1-u.deadT*.8);}
   for(const [id,g] of BS.um)if(!ids.has(id)){Sc.remove(g);BS.um.delete(id);}
   const ps=new Set(B.projs);
-  for(const p of B.projs){let m=BS.pm.get(p);if(!m){m=new THREE.Group();if(p.kind==='catapult'){const s=new THREE.Mesh(GEO.dode,MAT.stone());s.scale.setScalar(.22);m.add(s);}else if(p.kind==='ballista'){const a=new THREE.Mesh(cylG(5),M('#6b4423',.8));a.scale.set(.05,1.1,.05);a.rotation.x=Math.PI/2;m.add(a);const tip=new THREE.Mesh(coneG(5),MAT.metal());tip.scale.set(.08,.18,.08);tip.rotation.x=Math.PI/2;tip.position.z=.6;m.add(tip);}else if(p.turret){const s=new THREE.Mesh(GEO.sph,M(p.side?'#ffb0a0':'#a8d2ff',.3,0,{emissive:p.side?'#ff5030':'#4a9cff',emissiveIntensity:3}));s.scale.setScalar(.13);m.add(s);}
-      else{const a=new THREE.Mesh(cylG(5),M('#e8dcc0',.8));a.scale.set(.02,.7,.02);a.rotation.x=Math.PI/2;m.add(a);const tip=new THREE.Mesh(coneG(5),MAT.metal());tip.scale.set(.04,.1,.04);tip.rotation.x=Math.PI/2;tip.position.z=.38;m.add(tip);}
+  for(const p of B.projs){let m=BS.pm.get(p);if(!m){m=new THREE.Group();if(p.kind==='catapult'){const s=new THREE.Mesh(GEO.dode,MAT.stone());s.scale.setScalar(.22);m.add(s);}else if(p.kind==='ballista'){const a=new THREE.Mesh(cylG(5),M('#6b4423',.8));a.scale.set(.05,1.1,.05);a.rotation.x=Math.PI/2;m.add(a);const tip=new THREE.Mesh(coneG(5),MAT.metal());tip.scale.set(.08,.18,.08);tip.rotation.x=Math.PI/2;tip.position.z=.6;m.add(tip);}      else{const a=new THREE.Mesh(cylG(5),M('#e8dcc0',.8));a.scale.set(.02,.7,.02);a.rotation.x=Math.PI/2;m.add(a);const tip=new THREE.Mesh(coneG(5),MAT.metal());tip.scale.set(.04,.1,.04);tip.rotation.x=Math.PI/2;tip.position.z=.38;m.add(tip);}
       Sc.add(m);BS.pm.set(p,m);}
     const k=Math.min(1,p.tt/p.dur),k2=Math.min(1,k+.05);const sx=cellX(p.sx),sz=cellZ(p.sy),tx=cellX(p.t.rx),tz=cellZ(p.t.ry);const h0=p.turret?2.3:1.2,h1=.9;
     const arc=p.kind==='catapult'?4:p.kind==='ballista'?.3:p.turret?.4:1.3;const P=(kk)=>[sx+(tx-sx)*kk,h0+(h1-h0)*kk+Math.sin(kk*Math.PI)*arc,sz+(tz-sz)*kk];const a=P(k),b=P(k2);m.position.set(a[0],a[1],a[2]);m.lookAt(b[0],b[1],b[2]);}
