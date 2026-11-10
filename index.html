@@ -582,7 +582,7 @@ function pvpMarchPos(o,m){const L=Math.max(1,Math.hypot(m.t[0]-m.o[0],m.t[1]-m.o
 function pvpEmPos(o,a){const L=Math.max(1,Math.hypot(a.t[0]-a.x,a.t[1]-a.y));const f=Math.min(1,((Date.now()-o.seenAt)/1000)*ESPD/L);return [a.x+(a.t[0]-a.x)*f,a.y+(a.t[1]-a.y)*f];}
 function ixTargets(){const out=[];if(!G)return out;for(const e of G.emarch){const t={ai:emId(e)};const r=ixResolve(t);if(r)out.push([t,r]);}
   if(G.mp)for(const k in G.others){const o=G.others[k];if(!o.online)continue;for(const a of (o.em||[])){const t={pai:k,eid:a.id};const r=ixResolve(t);if(r)out.push([t,r]);}
-    for(const pm of pms(o))if(pm.s==='going'&&pm.id){const t={pvp:k,mid:pm.id};const r=ixResolve(t);if(r)out.push([t,r]);}}
+    if(!isPAlly(k))for(const pm of pms(o))if(pm.s==='going'&&pm.id){const t={pvp:k,mid:pm.id};const r=ixResolve(t);if(r)out.push([t,r]);}}
   return out;}
 function sendArmy(tg,units,org){if(!armyTotal(units)){toast('Pick at least one soldier to send.');return false;}if(!canLaunch()){toast(`You already have ${MAXM} armies out. Wait for one to come back.`);return false;}org=org||origins()[0];
   if(tg.join){const hj=joinables().find(j=>j.k==tg.join.k&&j.mid===tg.join.mid);if(!hj){toast('That march is over.');return false;}if(hj.taken){toast('Someone else already joined that march.');return false;}
@@ -591,7 +591,7 @@ function sendArmy(tg,units,org){if(!armyTotal(units)){toast('Pick at least one s
     toast(`🤝 Your army sets out to join 👤 ${hj.o.name}'s march on ${hj.tname}!`);updHUD();save(true);mpPush(true);return true;}
   if(tg.ix){const T2=ixResolve(tg.ix);if(!T2){toast('That army is gone.');return false;}for(const t of ARMY_T)G.army[t]-=units[t]||0;
     addMarch({id:Math.random().toString(36).slice(2,8),state:'going',kind:'intercept',tgt:tg.ix,origin:{x:org.x,y:org.y,name:org.name},units,x:org.x+.5,y:Math.min(H-1,org.y+3)+.5,ang:0,path:[],idx:0,prog:0,start:0});
-    toast(`⚔ Your army rides out to intercept ${T2.name}!`);updHUD();save(true);return true;}const c=tg.pvp!=null?pvpCiv(tg.pvp):G.civs[tg.civ];if(!c){toast('That target is gone.');return false;}if(tg.civ!=null&&isFriend(c)){toast(`The ${c.name} is your ally. Leave the alliance first.`);return false;}
+    toast(`⚔ Your army rides out to intercept ${T2.name}!`);updHUD();save(true);return true;}const c=tg.pvp!=null?pvpCiv(tg.pvp):G.civs[tg.civ];if(!c){toast('That target is gone.');return false;}if(tg.pvp!=null&&isPAlly(tg.pvp)){toast(`👤 ${c.name} is your ally. End the alliance first.`);return false;}if(tg.civ!=null&&isFriend(c)){toast(`The ${c.name} is your ally. Leave the alliance first.`);return false;}
   for(const t of ARMY_T)G.army[t]-=units[t]||0;const sy=Math.min(H-1,org.y+3);
   addMarch({id:Math.random().toString(36).slice(2,8),state:'going',civ:tg.civ,pvp:tg.pvp,origin:{x:org.x,y:org.y,name:org.name},units,path:marchPath(org.x,sy,c.x,c.y,3),idx:0,prog:0,start:sy*W+org.x});
   toast(`🚩 Your army marches from ${org.name.toLowerCase()==='your capital'?'your capital':org.name} on ${c.name}!`);updHUD();save(true);return true;}
@@ -613,6 +613,14 @@ function formAlliance(c){if(myAlly()){toast('Leave your alliance first.');return
   const al={id:G.alliances.length,name:ALLY_NAMES[G.alliances.length%ALLY_NAMES.length]+(G.alliances.length>=ALLY_NAMES.length?' II':''),m:[c.i],me:true};c.ally=al.id;G.alliances.push(al);updHUD();save(true);
   showModal(`<h2>🤝 The ${al.name} is born!</h2><p>You and the <b style="color:${c.hex}">${c.name}</b> are now allies. Other civilizations may join you over time.</p><ul><li>They <b>will not attack you</b>, and you cannot attack them.</li><li>When someone attacks your city, <b>they send soldiers to help</b>.</li><li>Trade brings in <b>+1 gold per member</b> every 3 seconds.</li></ul>`,[{t:'Great',primary:true}]);}
 function leaveAlliance(){const al=myAlly();if(!al)return;al.me=false;if(al.m.length<2){for(const i of al.m)G.civs[i].ally=null;al.m=[];}save(true);toast(`You left the ${al.name}.`);}
+/* ---- alliances between players (online) ---- */
+const pAl=()=>G.pAllies||(G.pAllies=[]);
+const isPAlly=k=>!!(G&&G.mp&&pAl().includes(+k)&&G.others[k]&&(G.others[k].pa||[]).includes(G.mp.slot));
+function pSend(rec){G.raidsOut.push(Object.assign({id:Math.random().toString(36).slice(2,10),t:Date.now()},rec));mpPush(true);}
+function proposePAlly(k){k=+k;if(!pAl().includes(k))pAl().push(k);pSend({kind:'areq',to:k});save(true);toast(`🤝 Alliance offer sent to 👤 ${(G.others[k]||{}).name||'player'}.`);}
+function acceptPAlly(k){k=+k;if(!pAl().includes(k))pAl().push(k);G.pInc=(G.pInc||[]).filter(x=>x!==k);pSend({kind:'aacc',to:k});save(true);updHUD();toast(`🤝 You are now allied with 👤 ${(G.others[k]||{}).name||'player'}!`);}
+function declinePAlly(k){k=+k;G.pInc=(G.pInc||[]).filter(x=>x!==k);pSend({kind:'adec',to:k});}
+function endPAlly(k){k=+k;G.pAllies=pAl().filter(x=>x!==k);pSend({kind:'aend',to:k});save(true);toast(`You ended the alliance with 👤 ${(G.others[k]||{}).name||'player'}.`);}
 function openAlliances(){const mine=myAlly();let h=`<h2>🤝 Alliances</h2>`;
   if(mine)h+=`<div class="urow"><div class="ic">🤝</div><div class="info"><b>You are in the ${mine.name}</b><br>Members: ${mine.m.map(i=>`<b style="color:${G.civs[i].hex}">${G.civs[i].name}</b>`).join(', ')}<br>They won't attack you, they help defend your city, and trade earns +${mine.m.length} 🪙 every 3s.</div><div class="tb"><button class="btn" id="alLeave">Leave</button></div></div>`;
   else h+=`<p>Join an alliance by sending its members a gift of gold. Allies won't attack you, they send soldiers when your city is attacked, and trade earns you extra gold.</p>`;
@@ -625,7 +633,17 @@ function openAlliances(){const mine=myAlly();let h=`<h2>🤝 Alliances</h2>`;
     if(!free.length)h+=`<p style="opacity:.8">Explore the forest to meet civilizations you could ally with.</p>`;
     else{h+=`<p style="opacity:.8;margin:0 0 6px">Ask a civilization you have explored to ally with you.</p>`;
       for(const c of free){const k=formCost(c);h+=`<div class="urow"><div class="ic" style="color:${c.hex}">🏰</div><div class="info"><b style="color:${c.hex}">${c.name}</b> ${'★'.repeat(c.lv)} · ${Math.round(civDist(c))} tiles away<br>Gift: <b>${costStr(k)}</b></div><div class="tb"><button class="btn" data-form="${c.i}">Ally</button></div></div>`;}}}
+  if(G.mp){let h0=h;h='';const ks=Object.keys(G.others);h+=`<h3 style="margin:4px 0 6px">👤 Players in room ${G.mp.code.toUpperCase()}</h3>`;
+    if(!ks.length)h+=`<p style="opacity:.8">Nobody else has joined your room yet.</p>`;
+    else h+=`<p style="opacity:.8;margin:0 0 6px">Allied players can't attack each other or ambush each other's armies, see each other's marches with a 🤝 Join button, and trade brings each of you +2 🪙 every 3 seconds.</p>`;
+    for(const k of ks){const o=G.others[k],al=isPAlly(k),out=pAl().includes(+k)&&!al,inc=(G.pInc||[]).includes(+k);
+      h+=`<div class="urow"><div class="ic" style="color:${pvpHex(+k)}">👤</div><div class="info"><b style="color:${pvpHex(+k)}">${o.name}</b> ${o.online?'🟢':'⚪'} · City ★${o.lv||1}<br>${al?'🤝 <b>Your ally</b>':out?'⏳ Waiting for them to accept':inc?'📨 Wants to be your ally':'Not allied'}</div><div class="tb">${al||out?`<button class="btn" data-pend="${k}">${al?'End alliance':'Cancel'}</button>`:inc?`<button class="btn primary" data-pacc="${k}">Accept</button><button class="btn" data-pdec="${k}">Decline</button>`:`<button class="btn primary" data-preq="${k}" ${o.online?'':'disabled'}>Propose alliance</button>`}</div></div>`;}
+    const i0=h0.indexOf('</h2>')+5;h=h0.slice(0,i0)+h+`<h3 style="margin:16px 0 6px">🏰 Rival civilizations</h3>`+h0.slice(i0);}
   showModal(h,[{t:'Close'}]);const md=$('modal');
+  md.querySelectorAll('[data-preq]').forEach(b=>b.onclick=()=>{proposePAlly(b.dataset.preq);openAlliances();});
+  md.querySelectorAll('[data-pacc]').forEach(b=>b.onclick=()=>{acceptPAlly(b.dataset.pacc);openAlliances();});
+  md.querySelectorAll('[data-pdec]').forEach(b=>b.onclick=()=>{declinePAlly(b.dataset.pdec);openAlliances();});
+  md.querySelectorAll('[data-pend]').forEach(b=>b.onclick=()=>{endPAlly(b.dataset.pend);openAlliances();});
   md.querySelectorAll('[data-join]').forEach(b=>b.onclick=()=>{const a=G.alliances.find(a=>a.id===+b.dataset.join);if(a){joinAlliance(a);if(!myAlly())openAlliances();}});
   md.querySelectorAll('[data-form]').forEach(b=>b.onclick=()=>{formAlliance(G.civs[+b.dataset.form]);if(!myAlly())openAlliances();});
   if($('alLeave'))$('alLeave').onclick=()=>{leaveAlliance();openAlliances();};}
@@ -684,7 +702,7 @@ function updateWorld(dt){
   projs=projs.filter(p=>!p.done);
   for(const f of floats){f.t+=dt;}floats=floats.filter(f=>f.t<1.2);
   feedT-=dt;if(feedT<=0){feedT=.5;renderFeed();}
-  timers.gold-=dt;if(timers.gold<=0){timers.gold=3;const g=2*G.up.mine+3*(G.up.market||0)+2*captured()+(G.city.lv-1)+(myAlly()?myAlly().m.length:0);if(g)G.res.gold+=g;}
+  timers.gold-=dt;if(timers.gold<=0){timers.gold=3;const g=2*G.up.mine+3*(G.up.market||0)+2*captured()+(G.city.lv-1)+(myAlly()?myAlly().m.length:0)+(G.mp?2*Object.keys(G.others).filter(isPAlly).length:0);if(g)G.res.gold+=g;}
   for(const s of G.stumps){s.t-=dt;if(s.t<=0){if(G.tiles[s.i]===STUMP&&!bAt.has(s.i)&&!overlapsTile(player,s.i)){G.tiles[s.i]=TREE;s.done=true;dirty();}else s.t=8;}}
   G.stumps=G.stumps.filter(s=>!s.done&&G.tiles[s.i]===STUMP);
   timers.explore-=dt;if(timers.explore<=0){timers.explore=.3;reveal(Math.floor(player.x/T),Math.floor(player.y/T),10);}
@@ -883,7 +901,7 @@ function renderWorld(dt){WS.t+=dt;
   ctx.clearRect(0,0,VW,VH);
   for(const c of G.civs){if(!G.explored[c.y*W+c.x])continue;const s=toScreen(cam,c.x+.5,3.3,c.y+.5);if(!s)continue;
     if(c.captured)label(`${c.name} (yours)`,s[0],s[1],'#bcd6ff',13);else if(c.taken!=null)label(`${c.name} (👤 ${(G.others[c.taken]||{}).name||'another player'})`,s[0],s[1],'#eee',13);else{const al=allyOf(c);label(`${c.name}  ${'★'.repeat(c.lv)}`,s[0],s[1]-(al?16:8),'#fff',14);label(`🧱 ${c.wall}  ·  ~${armyTotal(c.army)} soldiers`,s[0],s[1]+(al?1:9),'#ffe2b8',12);if(al)label(al.me?`🤝 ${al.name} · YOUR ALLY`:`🤝 ${al.name}`,s[0],s[1]+17,al.me?'#7dffb0':'#ffd166',12);}}
-  for(const k in G.others){const o=G.others[k],[x,y]=MP_SLOTS[k];if(!G.explored[y*W+x])continue;const s=toScreen(cam,x+.5,3.3,y+.5);if(s){label(`👤 ${o.name}  ★${o.lv||1}  🧱${o.wall||0}`,s[0],s[1],'#fff',14);label(o.online?'🟢 online':'⚪ offline',s[0],s[1]+16,'#ddd',11);}}
+  for(const k in G.others){const o=G.others[k],[x,y]=MP_SLOTS[k];if(!G.explored[y*W+x])continue;const s=toScreen(cam,x+.5,3.3,y+.5);if(s){label(`${isPAlly(k)?'🤝 ':'👤 '}${o.name}  ★${o.lv||1}  🧱${o.wall||0}${isPAlly(k)?'  · ALLY':''}`,s[0],s[1],isPAlly(k)?'#7dffb0':'#fff',14);label(o.online?'🟢 online':'⚪ offline',s[0],s[1]+16,'#ddd',11);}}
   {const s=toScreen(cam,G.home.x+.5,3.0,G.home.y+.5);if(s)label(`Your City  ★${G.city.lv}  🧱${G.city.wall}`,s[0],s[1],'#cfe2ff',13);}
   const ml=[];for(const m of G.marches)ml.push([m,0]);for(const e of G.emarch)ml.push([e,1]);for(const pm of mpMarches())ml.push([pm,2]);
   for(const [m,side] of ml){const p=marchPos(m);const s=toScreen(cam,p[0],2.3,p[1]);if(!s)continue;const n=armyTotal(m.units);
@@ -1305,11 +1323,13 @@ let mFrom=-1,mShowAll=false,FEED=[],feedSig='',feedHide=new Set(),feedT=0;
 function feedItems(){const out=[],J=joinables();
   for(const [t,r] of ixTargets()){const key=JSON.stringify(t);if(feedHide.has(key))continue;const j=t.pvp!=null?J.find(x=>x.mid===t.mid):null;
     const d=Math.round(Math.hypot(r.x-G.home.x,r.y-G.home.y)/5)*5;let eta='';if(t.ai!=null&&r.e)eta=fmt(Math.round(marchEta(r.e,ESPD)/5)*5);
-    out.push({key,t,j,me:r.dest==='your city',hex:r.hex,txt:`${r.src==='pvp'?'':'⚠ '}<b style="color:${r.hex}">${r.name}</b> (${armyTotal(r.units)}) → <b>${r.dest}</b> <small>${eta?'arrives in '+eta:'~'+d+' tiles away'}</small>`});}
+    const toAlly=t.pai!=null&&isPAlly(t.pai);out.push({key,t,j,me:r.dest==='your city',hex:r.hex,txt:`${r.src==='pvp'?'':'⚠ '}<b style="color:${r.hex}">${r.name}</b> (${armyTotal(r.units)}) → <b>${toAlly?'🤝 your ally ':''}${r.dest}</b> <small>${eta?'arrives in '+eta:'~'+d+' tiles away'}</small>`});}
+  for(const j of J){if(!isPAlly(j.k))continue;const key='j'+j.mid;if(feedHide.has(key))continue;const d=Math.round(Math.hypot(j.p[0]-G.home.x,j.p[1]-G.home.y)/5)*5;
+    out.push({key,t:null,j,ally:1,hex:pvpHex(+j.k),txt:`🤝 <b style="color:${pvpHex(+j.k)}">Your ally ${j.o.name}'s army</b> (${armyTotal(j.hm.u)}) → <b>${j.tname}</b> <small>~${d} tiles away</small>`});}
   out.sort((a,b)=>(b.me-a.me));return out;}
 function renderFeed(){const el=$('mfeed');if(!el)return;if(mode!=='world'||!G){if(feedSig){el.innerHTML='';feedSig='';}return;}
   const items=feedItems(),can=canLaunch(),show=items.slice(0,4);const sig=show.map(i=>i.key+i.txt+(i.j?'j'+i.j.taken:'')).join('|')+can+items.length;if(sig===feedSig)return;feedSig=sig;FEED=show;
-  el.innerHTML=show.map((it,n)=>`<div class="mf${it.me?' me':''}" style="--c:${it.hex}"><span class="t">${it.txt}</span><button data-fi="${n}" data-a="ix" ${can?'':'disabled title="You already have 3 armies out"'}>⚔ ${it.me?'Intercept':'Attack'}</button>${it.j?`<button class="j" data-fi="${n}" data-a="join" ${can&&!it.j.taken?'':'disabled'} title="${it.j.taken?'Someone already joined':'Join this march'}">🤝 Join</button>`:''}<button class="x" data-fi="${n}" data-a="hide" title="Hide">✕</button></div>`).join('')
+  el.innerHTML=show.map((it,n)=>`<div class="mf${it.me?' me':''}" style="--c:${it.hex}"><span class="t">${it.txt}</span>${it.t?`<button data-fi="${n}" data-a="ix" ${can?'':'disabled title="You already have 3 armies out"'}>⚔ ${it.me?'Intercept':'Attack'}</button>`:''}${it.j?`<button class="j" data-fi="${n}" data-a="join" ${can&&!it.j.taken?'':'disabled'} title="${it.j.taken?'Someone already joined':'Join this march'}">🤝 Join</button>`:''}<button class="x" data-fi="${n}" data-a="hide" title="Hide">✕</button></div>`).join('')
     +(items.length>4?`<div class="mf"><span class="t">+${items.length-4} more armies marching</span><button class="j" data-a="all">See all</button></div>`:'');}
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#mfeed button');if(!b||!G)return;const it=FEED[+b.dataset.fi],a=b.dataset.a;
   if(a==='all'){openMarch();return;}if(!it)return;if(a==='hide'){feedHide.add(it.key);feedSig='';renderFeed();return;}
@@ -1337,7 +1357,7 @@ function openMarch(tg,fromId){if(fromId!=null)mFrom=fromId;const orgs=origins();
     IXL.forEach(([t,r],n)=>{const d=Math.round(Math.hypot(r.x-org.x,r.y-org.y)),on=msel&&msel.tg.ix&&JSON.stringify(msel.tg.ix)===JSON.stringify(t);
       h+=`<div class="urow"><div class="ic" style="color:${r.hex}">⚔</div><div class="info"><b style="color:${r.hex}">${r.name}</b> → ${r.dest}<br>${compText(r.units)||'unknown size'} · ${d} tiles away</div><div class="tb"><button class="btn${r.dest==='your city'?' primary':''}" data-ix="${n}" ${!canLaunch()?'disabled':''}>${on?'✔ Target':'Intercept'}</button></div></div>`;});}
   const others=Object.keys(G.others);if(others.length){h+=`<h3 style="margin:14px 0 6px">👤 Other players</h3>`;for(const k of others){const o=G.others[k],[x,y]=MP_SLOTS[k],d=Math.round(Math.hypot(x-org.x,y-org.y));
-    h+=`<div class="urow"><div class="ic">👤</div><div class="info"><b style="color:${pvpHex(+k)}">${o.name}</b> ${o.online?'🟢':'⚪'} · City ★${o.lv||1} · 🧱 ${o.wall||0}<br>Garrison ~${armyTotal(o.army)} soldiers · ${d} tiles away</div><div class="tb"><button class="btn" data-pvp="${k}" ${!canLaunch()?'disabled':''}>${msel&&msel.tg.pvp==k?'✔ Target':'Choose'}</button></div></div>`;}}
+    h+=`<div class="urow"><div class="ic">👤</div><div class="info"><b style="color:${pvpHex(+k)}">${o.name}</b> ${o.online?'🟢':'⚪'} · City ★${o.lv||1} · 🧱 ${o.wall||0}<br>Garrison ~${armyTotal(o.army)} soldiers · ${d} tiles away</div><div class="tb">${isPAlly(k)?'<span style="color:#ffd166;font-size:13px">🤝 Ally</span>':`<button class="btn" data-pvp="${k}" ${!canLaunch()?'disabled':''}>${msel&&msel.tg.pvp==k?'✔ Target':'Choose'}</button>`}</div></div>`;}}
   const list=G.civs.filter(c=>!c.captured&&c.taken==null).sort((a,b)=>civDist(a,org)-civDist(b,org));const shown=mShowAll?list:list.slice(0,10);
   h+=`<h3 style="margin:14px 0 6px">Rival civilizations <span style="opacity:.7;font-weight:normal;font-size:13px">(${list.length} left, nearest first)</span></h3>`;
   for(const c of shown){const d=Math.round(civDist(c,org)),al=allyOf(c),known=G.explored[c.y*W+c.x];
@@ -1429,15 +1449,20 @@ function mpMarches(){const out=[];if(!G||!G.mp)return out;for(const k in G.other
 const pubM=m=>({id:m.id,s:m.state,pvp:m.pvp,c:m.civ,ki:m.kind==='intercept'?'ix':m.kind==='join'?'jn':undefined,jn:m.kind==='join'?m.tgt:undefined,j:m.joined?1:0,o:[...marchPos(m).slice(0,2)],t:m.state==='going'?[(mTarget(m)||{x:0}).x,(mTarget(m)||{y:0}).y]:[m.origin.x,m.origin.y],f:0,u:m.units});
 function mpState(){const m=G.marches[0];return {v:3,code:G.mp.code,seed:G.seed,slot:G.mp.slot,name:G.mp.name,lv:G.city.lv,wall:G.city.wall,weapons:{turret:G.up.turret,ballista:G.up.ballista,catapult:G.up.catapult},
   army:G.army,res:{wood:G.res.wood|0,stone:G.res.stone|0,gold:G.res.gold|0},cap:G.civs.filter(c=>c.captured).map(c=>c.i),
-  march:m?pubM(m):null,ms:G.marches.map(pubM),em:G.emarch.slice(0,3).map(e=>{const p=marchPos(e);return {id:emId(e),civ:e.civ,x:Math.round(p[0]*10)/10,y:Math.round(p[1]*10)/10,t:[G.home.x+.5,G.home.y+.5],u:e.units};}),raids:G.raidsOut.slice(-4),p:[Math.round(player.x/T*10)/10,Math.round(player.y/T*10)/10,Math.round(player.ang*100)/100,player.moving||player.working?1:0]};}
+  march:m?pubM(m):null,ms:G.marches.map(pubM),pa:pAl(),em:G.emarch.slice(0,3).map(e=>{const p=marchPos(e);return {id:emId(e),civ:e.civ,x:Math.round(p[0]*10)/10,y:Math.round(p[1]*10)/10,t:[G.home.x+.5,G.home.y+.5],u:e.units};}),raids:G.raidsOut.slice(-4),p:[Math.round(player.x/T*10)/10,Math.round(player.y/T*10)/10,Math.round(player.ang*100)/100,player.moving||player.working?1:0]};}
 function mpPush(force){if(!MP.room||!G||!G.mp)return;const st=mpState();const j=JSON.stringify(st);if(!force&&j===MP.last)return;MP.last=j;MP.room.presence({st}).catch(()=>{});}
 function mpTick(dt){if(!G.mp)return;MP.pushT-=dt;MP.hb=(MP.hb||0)-dt;if(MP.pushT<=0){MP.pushT=.4;if(MP.hb<=0){MP.hb=8;mpPush(true);}else mpPush();for(const k in G.others)G.others[k].online=!!MP.seen[k]&&Date.now()-MP.seen[k]<15000;}}
 function mpHandlePeers(peers){if(!G||!G.mp)return;let changed=false;
   for(const p of peers){if(p.sameTab)continue;const st=p.presence&&p.presence.st;if(!st||st.v!==3||st.code!==G.mp.code||st.slot===G.mp.slot||st.slot==null||st.slot<0||st.slot>3)continue;
     const k=st.slot;MP.seen[k]=Math.min(Date.now(),+(p.presence.t||Date.now()));const name=String(st.name||'Player').slice(0,20);if(!G.others[k])changed=true;
-    const pp=Array.isArray(st.p)&&st.p.length>=4?st.p.map(Number):null;G.others[k]={pos:pp,name,lv:+st.lv||1,wall:+st.wall||0,weapons:st.weapons||{},army:st.army||{},res:st.res||{},march:st.march||null,marches:Array.isArray(st.ms)?st.ms:st.march?[st.march]:[],em:Array.isArray(st.em)?st.em:[],online:Date.now()-MP.seen[k]<15000,seenAt:MP.seen[k]};
+    const pp=Array.isArray(st.p)&&st.p.length>=4?st.p.map(Number):null;G.others[k]={pos:pp,name,lv:+st.lv||1,wall:+st.wall||0,weapons:st.weapons||{},army:st.army||{},res:st.res||{},march:st.march||null,pa:Array.isArray(st.pa)?st.pa.map(Number):[],marches:Array.isArray(st.ms)?st.ms:st.march?[st.march]:[],em:Array.isArray(st.em)?st.em:[],online:Date.now()-MP.seen[k]<15000,seenAt:MP.seen[k]};
     for(const i of (st.cap||[])){const c=G.civs[i];if(c&&!c.captured&&c.taken==null){c.taken=k;c.ally=null;changed=true;}}
     for(const r of (st.raids||[])){if(r.to!==G.mp.slot||G.mpDone.includes(r.id))continue;G.mpDone.push(r.id);
+      if(r.kind==='areq'){const kk=+k;changed=true;if(pAl().includes(kk)){toast(`🤝 You and 👤 ${name} are now allies!`);continue;}G.pInc=G.pInc||[];if(!G.pInc.includes(kk))G.pInc.push(kk);
+        showModal(`<h2>🤝 👤 ${name} wants an alliance</h2><p>Allies can't attack each other or ambush each other's armies. You'll see each other's marches with a Join button, and trade brings each of you +2 🪙 every 3 seconds.</p>`,[{t:'Accept',primary:true,fn:()=>acceptPAlly(kk)},{t:'Decline',fn:()=>declinePAlly(kk)}]);continue;}
+      if(r.kind==='aacc'){changed=true;if(pAl().includes(+k))showModal(`<h2>🤝 👤 ${name} accepted!</h2><p>You are now allies.</p>`,[{t:'Great',primary:true}]);continue;}
+      if(r.kind==='adec'){changed=true;G.pAllies=pAl().filter(x=>x!==+k);toast(`👤 ${name} declined your alliance offer.`);continue;}
+      if(r.kind==='aend'){changed=true;G.pAllies=pAl().filter(x=>x!==+k);G.pInc=(G.pInc||[]).filter(x=>x!==+k);toast(`💔 👤 ${name} ended your alliance.`);continue;}
       if(r.kind==='co'){const m=G.marches.find(x=>x.kind==='join'&&(r.mid?x.tgt.mid===r.mid:String(x.tgt.k)===String(k)));if(m){delMarch(m);sendHome(r.back||{},{x:r.tx|0,y:Math.max(0,(r.ty|0)-3),i:-1},m.origin);}G.res.gold+=r.gold|0;
         if(B&&B.coop&&B.btId===r.bt){B.coRes=r;if(!B.endAt)B.endAt=Date.now()+3000;}else if(!(B&&B.coop))coResultModal(r);changed=true;continue;}
       if(r.kind==='ix'){const m=G.marches.find(x=>x.id===r.mid);if(m){for(const t of ARMY_T)m.units[t]=Math.max(0,(m.units[t]||0)-((r.lost||{})[t]|0));
