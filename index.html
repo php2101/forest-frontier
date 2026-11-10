@@ -13,6 +13,12 @@ canvas#c{display:block;position:fixed;inset:0}
 canvas#ov{position:fixed;inset:0;pointer-events:none;z-index:2}
 .hide{display:none!important}
 #hud{position:fixed;top:8px;left:8px;right:160px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;z-index:5;pointer-events:none}
+#mfeed{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none}
+.mf{pointer-events:auto;display:flex;align-items:center;gap:8px;background:rgba(14,20,30,.88);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.16);border-left:4px solid var(--c,#ffd166);border-radius:10px;padding:5px 6px 5px 10px;font-size:13px;max-width:100%}
+.mf.me{border-color:rgba(255,90,90,.6);border-left-color:#ff5a5a;background:rgba(48,14,14,.9);animation:mfp 1.6s ease-in-out infinite}
+@keyframes mfp{50%{box-shadow:0 0 0 3px rgba(255,90,90,.25)}}
+.mf .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:440px}.mf small{opacity:.75}
+.mf button{font:inherit;font-size:12px;font-weight:600;border:0;border-radius:7px;padding:4px 9px;cursor:pointer;color:#fff;background:#b8433a}.mf button.j{background:#2f8f6a}.mf button.x{background:transparent;color:#aab;padding:2px 5px}.mf button:disabled{opacity:.45;cursor:default}
 .pill{background:rgba(12,18,14,.82);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:5px 11px;font-size:14px;white-space:nowrap;pointer-events:auto}
 .pill b{font-variant-numeric:tabular-nums}
 #hThreatP.warn{background:rgba(170,25,25,.92);animation:pulse .7s infinite alternate}
@@ -87,6 +93,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <button class="hbtn" id="btnAlly">🤝 Allies <small>(L)</small></button>
   <button class="hbtn" id="btnSave" title="Save now"><span id="hSave">💾 Save</span></button>
   <button class="hbtn" id="btnHelp">❓</button>
+  <div id="mfeed"></div>
 </div>
 <div id="buildbar" class="hide"></div>
 
@@ -569,7 +576,7 @@ function ixResolve(t){if(!t||!G)return null;
   if(t.ai!=null){const e=G.emarch.find(e=>emId(e)===t.ai);if(!e)return null;const c=G.civs[e.civ],p=marchPos(e);return {x:p[0],y:p[1],name:`the ${c.name} army`,civName:c.name,hex:c.hex,lv:c.lv,units:e.units,dest:'your city',src:'ai',e};}
   const o=G.others&&G.others[t.pai!=null?t.pai:t.pvp];if(!o||!o.online)return null;
   if(t.pai!=null){const a=(o.em||[]).find(a=>a.id===t.eid);if(!a)return null;const c=G.civs[a.civ];if(!c)return null;const p=pvpEmPos(o,a);return {x:p[0],y:p[1],name:`the ${c.name} army`,civName:c.name,hex:c.hex,lv:c.lv,units:a.u||{},dest:`👤 ${o.name}`,src:'pai'};}
-  const m=pms(o).find(x=>x.id===t.mid&&x.s==='going');if(!m)return null;const p=pvpMarchPos(o,m);const dn=m.pvp===G.mp.slot?'your city':m.pvp!=null&&G.others[m.pvp]?`👤 ${G.others[m.pvp].name}`:'a rival city';
+  const m=pms(o).find(x=>x.id===t.mid&&x.s==='going');if(!m)return null;const p=pvpMarchPos(o,m);const dn=hmTargetName(m);
   return {x:p[0],y:p[1],name:`👤 ${o.name}'s army`,civName:o.name,hex:pvpHex(+t.pvp),lv:Math.max(1,o.lv|0),units:m.u||{},dest:dn,src:'pvp'};}
 function pvpMarchPos(o,m){const L=Math.max(1,Math.hypot(m.t[0]-m.o[0],m.t[1]-m.o[1]));const f=Math.min(1,(m.f||0)+((Date.now()-o.seenAt)/1000)*MSPD/L);return [m.o[0]+(m.t[0]-m.o[0])*f,m.o[1]+(m.t[1]-m.o[1])*f];}
 function pvpEmPos(o,a){const L=Math.max(1,Math.hypot(a.t[0]-a.x,a.t[1]-a.y));const f=Math.min(1,((Date.now()-o.seenAt)/1000)*ESPD/L);return [a.x+(a.t[0]-a.x)*f,a.y+(a.t[1]-a.y)*f];}
@@ -676,6 +683,7 @@ function updateWorld(dt){
   for(const p of projs){const dx=p.tg.x-p.x,dy=p.tg.y-p.y,d=Math.hypot(dx,dy);if(d<10||p.tg.hp<=0){p.done=true;if(p.tg.hp>0){p.tg.hp-=p.dmg;if(p.tg.hp<=0){G.res.gold+=2;addFloat(p.tg.x,p.tg.y,'+2 🪙','#ffd166');}}}else{p.x+=dx/d*520*dt;p.y+=dy/d*520*dt;}}
   projs=projs.filter(p=>!p.done);
   for(const f of floats){f.t+=dt;}floats=floats.filter(f=>f.t<1.2);
+  feedT-=dt;if(feedT<=0){feedT=.5;renderFeed();}
   timers.gold-=dt;if(timers.gold<=0){timers.gold=3;const g=2*G.up.mine+3*(G.up.market||0)+2*captured()+(G.city.lv-1)+(myAlly()?myAlly().m.length:0);if(g)G.res.gold+=g;}
   for(const s of G.stumps){s.t-=dt;if(s.t<=0){if(G.tiles[s.i]===STUMP&&!bAt.has(s.i)&&!overlapsTile(player,s.i)){G.tiles[s.i]=TREE;s.done=true;dirty();}else s.t=8;}}
   G.stumps=G.stumps.filter(s=>!s.done&&G.tiles[s.i]===STUMP);
@@ -1293,7 +1301,19 @@ function openCity(){const c=G.city,nl=c.lv+1,nw=c.wall+1;
     else if(k==='wall'){pay(WALL_UP[nw]);c.wall++;toast(`🧱 Walls upgraded: ${WALL_DESC[c.wall]}`);}
     else{const n=(G.up[k]||0)+1;pay(UPG[k].cost[n]);G.up[k]=n;if(WEAPONS.includes(k))syncWeapons();toast(`${UPG[k].icon} ${UPG[k].name} level ${n}: ${upDesc(k,n)}`);}
     updHUD();updBB();save(true);openCity();});}
-let mFrom=-1,mShowAll=false;
+let mFrom=-1,mShowAll=false,FEED=[],feedSig='',feedHide=new Set(),feedT=0;
+function feedItems(){const out=[],J=joinables();
+  for(const [t,r] of ixTargets()){const key=JSON.stringify(t);if(feedHide.has(key))continue;const j=t.pvp!=null?J.find(x=>x.mid===t.mid):null;
+    const d=Math.round(Math.hypot(r.x-G.home.x,r.y-G.home.y)/5)*5;let eta='';if(t.ai!=null&&r.e)eta=fmt(Math.round(marchEta(r.e,ESPD)/5)*5);
+    out.push({key,t,j,me:r.dest==='your city',hex:r.hex,txt:`${r.src==='pvp'?'':'⚠ '}<b style="color:${r.hex}">${r.name}</b> (${armyTotal(r.units)}) → <b>${r.dest}</b> <small>${eta?'arrives in '+eta:'~'+d+' tiles away'}</small>`});}
+  out.sort((a,b)=>(b.me-a.me));return out;}
+function renderFeed(){const el=$('mfeed');if(!el)return;if(mode!=='world'||!G){if(feedSig){el.innerHTML='';feedSig='';}return;}
+  const items=feedItems(),can=canLaunch(),show=items.slice(0,4);const sig=show.map(i=>i.key+i.txt+(i.j?'j'+i.j.taken:'')).join('|')+can+items.length;if(sig===feedSig)return;feedSig=sig;FEED=show;
+  el.innerHTML=show.map((it,n)=>`<div class="mf${it.me?' me':''}" style="--c:${it.hex}"><span class="t">${it.txt}</span><button data-fi="${n}" data-a="ix" ${can?'':'disabled title="You already have 3 armies out"'}>⚔ ${it.me?'Intercept':'Attack'}</button>${it.j?`<button class="j" data-fi="${n}" data-a="join" ${can&&!it.j.taken?'':'disabled'} title="${it.j.taken?'Someone already joined':'Join this march'}">🤝 Join</button>`:''}<button class="x" data-fi="${n}" data-a="hide" title="Hide">✕</button></div>`).join('')
+    +(items.length>4?`<div class="mf"><span class="t">+${items.length-4} more armies marching</span><button class="j" data-a="all">See all</button></div>`:'');}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#mfeed button');if(!b||!G)return;const it=FEED[+b.dataset.fi],a=b.dataset.a;
+  if(a==='all'){openMarch();return;}if(!it)return;if(a==='hide'){feedHide.add(it.key);feedSig='';renderFeed();return;}
+  if(a==='ix')openMarch({ix:it.t});else if(a==='join')openMarch({join:{k:it.j.k,mid:it.j.mid}});});
 function openMarch(tg,fromId){if(fromId!=null)mFrom=fromId;const orgs=origins();if(!orgs.some(o=>o.id===mFrom))mFrom=-1;const org=orgs.find(o=>o.id===mFrom);
   if(tg&&canLaunch())msel={tg,units:Object.assign({},G.army)};
   let h=`<h2>🚩 March to war</h2>`;
