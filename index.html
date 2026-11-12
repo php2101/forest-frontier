@@ -357,11 +357,18 @@ function makeUnit(type,side,opts){const g=new THREE.Group();const team=M(opts&&o
     cyl(R,.08,.48,leather,.08,.98,-.17,8,.3,0,0);for(let k=0;k<3;k++)box(R,.02,.12,.02,M('#e8e0d0'),.06+k*.03,1.24,-.24,.3,0,0);}
   U.armL=armL;U.armR=armR;U.rider=R;g.userData=U;return g;}
 function makeArmyGroup(units,hex,side){const g=new THREE.Group();const prev=ENEMY_HEX;if(side)ENEMY_HEX=hex;
-  let list=[];for(const t of ARMY_T)for(let k=0;k<Math.min(units[t]||0,3);k++)list.push(t);list=list.slice(0,7);if(!list.length)list.push('sword');
-  const slots=[[0,.55],[-.5,.15],[.5,.15],[0,-.3],[-.5,-.7],[.5,-.7],[0,-1.1]];const us=[];
-  list.forEach((t,k)=>{const u=makeUnit(t,side);u.scale.setScalar(.5);u.position.set(slots[k][0],0,slots[k][1]);g.add(u);us.push(u);});
-  cyl(g,.03,2.0,MAT.dwood(),.3,1.0,.95,6);const b=box(g,.03,.5,.6,M(side?hex:'#2f62c9'),.3,1.7,1.25);b.castShadow=false;
-  ENEMY_HEX=prev;g.userData.units=us;return g;}
+  /* more soldiers on the march = a bigger column: about 1 figure per 5 soldiers at first, growing more slowly for huge armies */
+  const tot=ARMY_T.reduce((a,t)=>a+(units[t]||0),0),nf=Math.max(1,Math.min(48,Math.round(Math.sqrt(tot)*1.6)));
+  const order=['knight','sword','spear','archer'],list=[];let left=nf;
+  order.forEach((t,i)=>{const c=units[t]||0;if(!c)return;let k=i===order.length-1?left:Math.max(1,Math.round(nf*c/Math.max(1,tot)));k=Math.min(k,left);for(let j=0;j<k;j++)list.push(t);left-=k;});
+  while(list.length<nf)list.push(list[list.length-1]||'sword');
+  const cols=Math.max(1,Math.min(7,Math.round(Math.sqrt(nf*.7)))),sp=.42,us=[],rnd=mulberry32(tot*13+nf);
+  list.forEach((t,k)=>{const row=Math.floor(k/cols),col=k%cols,inRow=Math.min(cols,nf-row*cols);const u=makeUnit(t,side);u.scale.setScalar(t==='knight'?.46:.5);
+    u.position.set((col-(inRow-1)/2)*sp+(rnd()-.5)*.08,0,.6-row*sp*1.05+(rnd()-.5)*.08);if(k>=10)u.traverse(o=>{if(o.isMesh)o.castShadow=false;});g.add(u);us.push(u);});
+  const rows=Math.ceil(nf/cols),bz=.6-(rows-1)*sp*1.05*.5,bh=2.0+Math.min(1.2,rows*.08),bw=.6+Math.min(.6,nf*.012);
+  const nb=tot>=300?3:tot>=100?2:1;for(let i=0;i<nb;i++){const bx=nb===1?((cols-1)/2*sp+.3):(i-(nb-1)/2)*Math.max(.9,cols*sp/nb);
+    cyl(g,.03,bh,MAT.dwood(),bx,bh/2,bz,6);const b=box(g,.03,.5+bw*.3,bw,M(side?hex:'#2f62c9'),bx,bh-.3,bz+bw/2);b.castShadow=false;}
+  ENEMY_HEX=prev;g.userData.units=us;g.userData.tot=tot;return g;}
 
 /* ================= WORLD GEN ================= */
 const CIVNAMES=['Iron Clan','Sun Kingdom','Frost Tribe','Jade Empire','Ember Horde','Stone Kin','River Folk','Ash Legion','Gold Throne','Storm Riders','Thorn Covenant','Bronze League','Moon Order','Wolf Clans','Salt Lords','Crimson Court','Oak Wardens','Dune Raiders','Silver Crown','Raven Host','Marsh Kingdom','Highland Earls','Copper Duchy','Amber Realm','Night Watch','Sky Archers','Granite Hold','Viper Guild','Lion Banner','Coral Republic'];
@@ -898,6 +905,7 @@ function syncWorldMeshes(dt){const S=WS.scene;
   const ms=[];for(const m of G.marches)ms.push([m,0,'#2f62c9']);for(const e of G.emarch)ms.push([e,1,G.civs[e.civ].hex]);for(const pm of mpMarches())ms.push([pm,1,pm.hex]);
   const mseen=new Set();
   for(const [m,side,hex] of ms){mseen.add(m);let g=WS.mg.get(m);
+    if(g&&g.userData.tot!==ARMY_T.reduce((a,t)=>a+((m.units||{})[t]||0),0)){const ng=makeArmyGroup(m.units,hex,side);ng.rotation.y=g.rotation.y;ng.userData.line=g.userData.line;S.remove(g);S.add(ng);WS.mg.set(m,ng);g=ng;}
     if(!g){g=makeArmyGroup(m.units,hex,side);S.add(g);WS.mg.set(m,g);const pts=[m.start,...m.path].map(i=>new THREE.Vector3(i%W+.5,.07,(i/W|0)+.5));
       const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:new THREE.Color(side?hex:'#7fb0ff'),transparent:true,opacity:.75}));S.add(ln);g.userData.line=ln;const p=marchPos(m);g.rotation.y=p[2];}
     const p=marchPos(m);g.position.set(p[0],0,p[1]);g.rotation.y=angLerp(g.rotation.y,p[2],Math.min(1,dt*5));
