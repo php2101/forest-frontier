@@ -849,7 +849,7 @@ function buildWorldScene(){
     water:mk(GEO.plane,new THREE.MeshStandardMaterial({color:col('#2a7aa8'),emissive:col('#0b3550'),emissiveIntensity:.35,roughness:.04,metalness:.35,transparent:true,opacity:.84}),false)};
   inst.water.receiveShadow=false;
   const camera=new THREE.PerspectiveCamera(45,VW/VH,0.1,300);
-  const pl=makePlayer();scene.add(pl);
+  const pl=makePlayer();pl.scale.setScalar(.62);scene.add(pl);
   const marker=new THREE.Mesh(GEO.ring,new THREE.MeshBasicMaterial({color:0xffd166,transparent:true,opacity:.9,depthWrite:false}));marker.scale.setScalar(.45);scene.add(marker);
   const pathMk=new THREE.Mesh(GEO.ring,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.7,depthWrite:false}));pathMk.scale.setScalar(.25);scene.add(pathMk);
   const tileMk=new THREE.Mesh(GEO.plane,new THREE.MeshBasicMaterial({color:0x4ade80,transparent:true,opacity:.35,depthWrite:false}));tileMk.position.y=.02;scene.add(tileMk);
@@ -927,7 +927,7 @@ function syncWorldMeshes(dt){const S=WS.scene;
   // other players walking around
   WS.op=WS.op||{};for(const k in G.others){const o=G.others[k];let a=WS.op[k];
     if(!o.online||!o.pos){if(a)a.visible=false;continue;}
-    if(!a){a=makePlayer(pvpHex(+k));a.scale.setScalar(1.05);S.add(a);WS.op[k]=a;a.position.set(o.pos[0],0,o.pos[1]);a.userData.walk=0;}
+    if(!a){a=makePlayer(pvpHex(+k));a.scale.setScalar(.66);S.add(a);WS.op[k]=a;a.position.set(o.pos[0],0,o.pos[1]);a.userData.walk=0;}
     a.visible=true;const dx=o.pos[0]-a.position.x,dz=o.pos[1]-a.position.z,d=Math.hypot(dx,dz);
     if(d>6){a.position.x=o.pos[0];a.position.z=o.pos[1];}else{const k2=Math.min(1,dt*6);a.position.x+=dx*k2;a.position.z+=dz*k2;}
     a.rotation.y=angLerp(a.rotation.y,o.pos[2],Math.min(1,dt*10));const mv=o.pos[3]&&d>.05;if(mv)a.userData.walk+=dt;
@@ -972,8 +972,8 @@ function renderWorld(dt){WS.t+=dt;
   const ml=[];for(const m of G.marches)ml.push([m,0]);for(const e of G.emarch)ml.push([e,1]);for(const pm of mpMarches())ml.push([pm,2]);
   for(const [m,side] of ml){const p=marchPos(m);const s=toScreen(cam,p[0],2.3,p[1]);if(!s)continue;const n=armyTotal(m.units);
     if(side===2)label(`${m.label.startsWith('⚠')?'':'👤 '}${m.label} (${n})`,s[0],s[1],'#fff',13);else if(side)label(`⚠ ${G.civs[m.civ].name}${m.helpers&&m.helpers.length?' + allies':''} army (${n}) · ${fmt(marchEta(m,ESPD))}`,s[0],s[1],'#ffb4a8',13);else label(m.kind==='join'?(m.joined?`🤝 Your army (${n}) marching with 👤 ${((G.others[m.tgt.k])||{}).name||'?'}`:`🤝 Your army → joining 👤 ${((G.others[m.tgt.k])||{}).name||'?'} (${n})`):m.kind==='intercept'?`⚔ Your army → ${(mTarget(m)||{}).name||'?'} (${n})`:coPartner(m)?`🚩 Your army (${n}) + 🤝 👤 ${coPartner(m).name} · ${fmt(marchEta(m,MSPD))}`:`🚩 Your army (${n}) · ${fmt(marchEta(m,MSPD))}`,s[0],s[1],'#cfe2ff',13);}
-  for(const k in G.others){const a=WS.op&&WS.op[k];if(!a||!a.visible)continue;const s=toScreen(cam,a.position.x,1.55,a.position.z);if(s)label(`👤 ${G.others[k].name}`,s[0],s[1],pvpHex(+k),14);}
-  if(player.hp<100){const s=toScreen(cam,tx,1.45,tz);if(s)hpBar(s[0],s[1],34,player.hp/100);}
+  for(const k in G.others){const a=WS.op&&WS.op[k];if(!a||!a.visible)continue;const s=toScreen(cam,a.position.x,1.05,a.position.z);if(s)label(`👤 ${G.others[k].name}`,s[0],s[1],pvpHex(+k),14);}
+  if(player.hp<100){const s=toScreen(cam,tx,.95,tz);if(s)hpBar(s[0],s[1],34,player.hp/100);}
   for(const w of wolves)if(w.hp<w.max){const s=toScreen(cam,w.x/T,1.0,w.y/T);if(s)hpBar(s[0],s[1],28,w.hp/w.max);}
   if(player.working){const gi=player.path.length&&G.tiles[player.path[0]]===TREE?player.path[0]:player.gather;if(gi!=null){const s=toScreen(cam,gi%W+.5,2.4,(gi/W|0)+.5);const pr=gi===player.gather?player.gT/(player.working===TREE?0.9:1.1):(player.cT||0)/0.9;if(s)hpBar(s[0],s[1],34,pr,'#ffd166');}}
   for(const f of floats){const s=toScreen(cam,f.x/T,1.4+f.t*1.2,f.y/T);if(!s)continue;ctx.globalAlpha=Math.max(0,1-f.t/1.2);label(f.text,s[0],s[1],f.col,14);ctx.globalAlpha=1;}}
@@ -992,24 +992,26 @@ function drawMini(){if(!G)return;const d=mimg.data;const crgb=G.civs.map(c=>hexR
   mctx.fillStyle='#fff';mctx.fillRect(Math.floor(player.x/T)-1,Math.floor(player.y/T)-1,3,3);}
 
 /* ================= BATTLE LOGIC ================= */
-const C=16,R=10,OPEN=0,FOREST=1,RCK=2,HILL=3;
+const C=40,R=16,OPEN=0,FOREST=1,RCK=2,HILL=3;
+/* battle layout: enemy wall column when you attack, your wall column when you defend, first column of the enemy's deployment */
+const AWALL=29,DWALL=11,EZ=30,HALF=R/2;
+const BGAPS=[[],[2,6,9,13],[3,8,12],[5,10],[8],[8]];
 const BLDG=4;const blockT=t=>t===RCK||t===BLDG;
 function genBattleTerrain(kind,lv,nh,field){const t=new Uint8Array(C*R),rnd=Math.random,bld=[];
   const blob=(type,n,c0,c1)=>{let c=c0+Math.floor(rnd()*(c1-c0+1)),r=Math.floor(rnd()*R);for(let k=0;k<n;k++){if(t[c+r*C]===OPEN)t[c+r*C]=type;c+=Math.floor(rnd()*3)-1;r+=Math.floor(rnd()*3)-1;c=Math.max(c0,Math.min(c1,c));r=Math.max(0,Math.min(R-1,r));}};
-  const att=kind==='attack',f0=field?3:att?1:8,f1=field?12:att?8:14;
-  if(field){const nf=3+Math.floor(rnd()*2);for(let i=0;i<nf;i++)blob(FOREST,4+Math.floor(rnd()*4),f0,f1);for(let i=0;i<2;i++)blob(HILL,3,f0,f1);
-    const nr=2+Math.floor(rnd()*3);for(let i=0;i<nr;i++){const c=4+Math.floor(rnd()*8),r=Math.floor(rnd()*R);t[c+r*C]=RCK;}
-    for(let c=0;c<C;c++)for(let r=0;r<R;r++)if((c<=2||c>=13)&&t[c+r*C]!==OPEN)t[c+r*C]=OPEN;return {t,bld};}
-  const nf=2+Math.floor(rnd()*2);for(let i=0;i<nf;i++)blob(FOREST,4+Math.floor(rnd()*4),f0,f1);
-  for(let i=0;i<2;i++)blob(HILL,3,f0,f1);
-  const nr=2+Math.floor(rnd()*2);for(let i=0;i<nr;i++){const c=(att?4:8)+Math.floor(rnd()*4),r=Math.floor(rnd()*R);t[c+r*C]=RCK;}
+  const att=kind==='attack',m0=field?6:att?11:DWALL+2,m1=field?C-8:att?AWALL-2:EZ-2;
+  /* the open ground between the armies: woods, hills and boulders */
+  const nf=5+Math.floor(rnd()*3);for(let i=0;i<nf;i++)blob(FOREST,5+Math.floor(rnd()*7),m0,m1);
+  const nh2=3+Math.floor(rnd()*3);for(let i=0;i<nh2;i++)blob(HILL,3+Math.floor(rnd()*3),m0,m1);
+  const nr=5+Math.floor(rnd()*4);for(let i=0;i<nr;i++){const c=m0+Math.floor(rnd()*(m1-m0+1)),r=Math.floor(rnd()*R);t[c+r*C]=RCK;}
+  if(field){for(let c=0;c<C;c++)for(let r=0;r<R;r++)if((c<=4||c>=C-8)&&t[c+r*C]!==OPEN)t[c+r*C]=OPEN;return {t,bld};}
   // the city itself
-  const k0=att?14:0;for(const [c,r] of [[k0,4],[k0+1,4],[k0,5],[k0+1,5]])t[c+r*C]=BLDG;bld.push({k:'keep',c:k0+.5,r:4.5});
-  const cand=[];for(let c=att?12:0;c<=(att?15:2);c++)for(let r=0;r<R;r++)if(t[c+r*C]!==BLDG)cand.push([c,r]);shuffle(cand);
-  let n=Math.min(att?8:6,nh);for(const [c,r] of cand){if(!n)break;if(r===4||r===5)continue;t[c+r*C]=BLDG;bld.push({k:'house',c,r});n--;}
-  for(let c=att?10:0;c<=(att?15:6);c++)for(let r=0;r<R;r++)if(t[c+r*C]===FOREST||t[c+r*C]===HILL||t[c+r*C]===RCK)t[c+r*C]=OPEN;
+  const k0=att?C-2:0;for(const [c,r] of [[k0,HALF-1],[k0+1,HALF-1],[k0,HALF],[k0+1,HALF]])t[c+r*C]=BLDG;bld.push({k:'keep',c:k0+.5,r:HALF-.5});
+  const cand=[];for(let c=att?C-6:0;c<=(att?C-1:3);c++)for(let r=0;r<R;r++)if(t[c+r*C]!==BLDG)cand.push([c,r]);shuffle(cand);
+  let n=Math.min(att?12:8,nh);for(const [c,r] of cand){if(!n)break;if(r===HALF-1||r===HALF)continue;t[c+r*C]=BLDG;bld.push({k:'house',c,r});n--;}
+  for(let c=att?AWALL:0;c<=(att?C-1:DWALL);c++)for(let r=0;r<R;r++)if(t[c+r*C]===FOREST||t[c+r*C]===HILL||t[c+r*C]===RCK)t[c+r*C]=OPEN;
   return {t,bld};}
-const zoneMax=()=>B.co||B.coop?5:B.kind==='attack'?2:5;
+const zoneMax=()=>B.co||B.coop?9:B.kind==='attack'?4:DWALL-1;
 const rowOK=r=>r>=(B.rowLo||0)&&r<=(B.rowHi==null?R-1:B.rowHi);
 function cellFree(c,r){return c>=0&&c<C&&r>=0&&r<R&&!blockT(B.terrain[c+r*C])&&!B.units.some(u=>u.alive&&u.c===c&&u.r===r);}
 function addUnit(type,side,c,r,mult,hp,n){const D=UDEF[type];if(side===0&&!mult&&G)mult=pMult(type);n=Math.max(1,n||1);let ph=hp||Math.round(D.hp*(mult||1));if(type==='wall')ph*=15;else if(D.static)ph*=WSC;hp=ph*n;const u={id:B.uid++,type,side,c,r,rx:c,ry:r,hp,max:hp,ph,n,cd:Math.random()*0.6,mt:Math.random()*0.3,alive:true,aggro:false,lunge:0,lx:0,ly:0,fa:side?-Math.PI/2:Math.PI/2,walk:Math.random()*5};B.units.push(u);return u;}
@@ -1022,11 +1024,11 @@ function zoneCells(){let n=0;const zm=zoneMax();for(let c=0;c<=zm;c++)for(let r=
 function glide(u,dt){const dx=u.c-u.rx,dy=u.r-u.ry,d=Math.hypot(dx,dy);if(d<1e-4){u.rx=u.c;u.ry=u.r;u.moving=false;return;}const st=Math.min(d,(d>2.5?60:(u.mvSpd||4))*dt);u.rx+=dx/d*st;u.ry+=dy/d*st;u.moving=true;}
 const rowsFor=n=>Array.from({length:n},(_,k)=>Math.min(R-1,Math.floor((k+.5)*R/n)));
 const flankRows=n=>Array.from({length:n},(_,k)=>k%2?R-1-Math.floor(k/2):Math.floor(k/2));
-function placeWalls(side,wl,col){/* walls scale with WSC in addUnit */if(wl<=0)return;for(let r=0;r<R;r++){B.terrain[col+r*C]=OPEN;if(WALL_GAPS[wl].includes(r))continue;const u=addUnit('wall',side,col,r,1,wallHp(wl));u.fixed=true;}}
-function deployEnemy(comp,mult){const tot=ARMY_T.reduce((a,t)=>a+(comp[t]||0),0),esz=pickSize(tot,34);
+function placeWalls(side,wl,col){/* walls scale with WSC in addUnit */if(wl<=0)return;for(let r=0;r<R;r++){B.terrain[col+r*C]=OPEN;if(BGAPS[wl].includes(r))continue;const u=addUnit('wall',side,col,r,1,wallHp(wl));u.fixed=true;}}
+function deployEnemy(comp,mult){const tot=ARMY_T.reduce((a,t)=>a+(comp[t]||0),0),esz=pickSize(tot,90);
   const P=(type,col,cmin,cmax,rows)=>{const L=WEAPONS.includes(type)?Array(comp[type]||0).fill(1):coList(comp[type]||0,esz);const rs=rows?flankRows(L.length):rowsFor(L.length);L.forEach((m,k)=>placeNear(type,1,col,rs[k],cmin,cmax,mult,m));};
-  if(B.kind==='attack'){P('turret',13,12,14);P('sword',11,11,13);P('spear',11,11,13);P('knight',12,11,14,1);P('archer',14,12,15);}
-  else{P('sword',12,11,15);P('spear',12,11,15);P('knight',13,11,15,1);P('archer',15,12,15);}}
+  if(B.kind==='attack'&&!B.civ.field){P('turret',AWALL+4,AWALL+2,AWALL+6);P('sword',AWALL+1,AWALL+1,AWALL+3);P('spear',AWALL+1,AWALL+1,AWALL+3);P('knight',AWALL+3,AWALL+1,AWALL+5,1);P('archer',AWALL+5,AWALL+2,C-1);}
+  else{P('sword',EZ+2,EZ,C-1);P('spear',EZ+2,EZ,C-1);P('knight',EZ+3,EZ,C-1,1);P('archer',EZ+6,EZ+2,C-1);}}
 function compText(c){return Object.entries(c||{}).filter(([k,v])=>v>0&&UDEF[k]).map(([k,v])=>`${UDEF[k].icon} ${v} ${v>1?(UDEF[k].name.endsWith('man')?UDEF[k].name.slice(0,-3)+'men':UDEF[k].name+'s'):UDEF[k].name}`).join(', ');}
 function startBattle(kind,civ,units,em,origin){
   const src=kind==='attack'?units:G.army;const pool={turret:0,ballista:0,catapult:0};for(const t of ARMY_T)pool[t]=src[t]||0;
@@ -1037,17 +1039,17 @@ function startBattle(kind,civ,units,em,origin){
   const gt=genBattleTerrain(kind,kind==='attack'?civ.lv:G.city.lv,kind==='attack'?2+2*civ.lv:2+2*G.up.houses,!!civ.field);
   B={kind,civ,em,pool,units:[],projs:[],fx:[],phase:'deploy',tactic:kind==='defense'?'hold':'charge',speed:1,t:0,lastDmg:0,endT:0,sel:null,terrain:gt.t,bld:gt.bld,uid:0,occ:[],wl:[G.city.wall,civ.wall]};
   const mult=1+0.08*(civ.lv-1);
-  B.origin=origin;B.help=help;let reinfTxt='';B.csize=pickSize(ARMY_T.reduce((a,t)=>a+(pool[t]||0),0),kind==='attack'?24:50);if(civ.pvp!=null)B.btId=Math.random().toString(36).slice(2,9);
+  B.origin=origin;B.help=help;let reinfTxt='';B.csize=pickSize(ARMY_T.reduce((a,t)=>a+(pool[t]||0),0),kind==='attack'?80:150);if(civ.pvp!=null)B.btId=Math.random().toString(36).slice(2,9);
   B.march=ARRIVING;ARRIVING=null;
-  if(kind==='attack'&&!civ.field&&G.mp){const cp=coPartner(B.march);if(cp){B.co=cp;B.rowLo=0;B.rowHi=4;B.btId=B.btId||Math.random().toString(36).slice(2,9);}}
+  if(kind==='attack'&&!civ.field&&G.mp){const cp=coPartner(B.march);if(cp){B.co=cp;B.rowLo=0;B.rowHi=HALF-1;B.btId=B.btId||Math.random().toString(36).slice(2,9);}}
   if(kind==='attack'&&civ.field){const comp={};for(const t of ARMY_T)comp[t]=civ.army[t]||0;deployEnemy(comp,mult);B.ecomp=comp;}
-  else if(kind==='attack'){placeWalls(1,civ.wall,10);const comp=Object.assign({},civ.army);
-    if(civ.pvp!=null){const wp=civ.weapons||{};const WC={turret:13,ballista:14,catapult:15};for(const w of WEAPONS){const n=Math.min(4,wp[w]||0),rs=rowsFor(n);for(let k=0;k<n;k++)placeNear(w,1,WC[w],rs[k],11,15,mult);}}
+  else if(kind==='attack'){placeWalls(1,civ.wall,AWALL);const comp=Object.assign({},civ.army);
+    if(civ.pvp!=null){const wp=civ.weapons||{};const WC={turret:AWALL+4,ballista:AWALL+5,catapult:AWALL+6};for(const w of WEAPONS){const n=Math.min(4,wp[w]||0),rs=rowsFor(n);for(let k=0;k<n;k++)placeNear(w,1,WC[w],rs[k],AWALL+1,C-1,mult);}}
     else{comp.turret=Math.min(4,civ.lv);const al=allyOf(civ);B.reinf=[];if(al){for(const j of al.m){const o=G.civs[j];if(o===civ||o.captured)continue;const sent={};for(const t of ARMY_T){const n=Math.ceil((o.army[t]||0)*.3);sent[t]=n;o.army[t]-=n;comp[t]=(comp[t]||0)+n;}if(armyTotal(sent)){B.reinf.push(o.name);}}
       if(B.reinf.length)reinfTxt=`<p>🤝 <b>Reinforcements from the ${al.name}</b> (${B.reinf.join(', ')}) have joined the defenders!</p>`;}}
     deployEnemy(comp,mult);B.ecomp=comp;}
-  else{placeWalls(0,G.city.wall,6);const WC={turret:4,ballista:3,catapult:1};for(const w of WEAPONS){const n=G.up[w]||0,rs=rowsFor(n);for(let k=0;k<n;k++){const u=placeNear(w,0,WC[w],rs[k],0,5);if(u)u.fixed=true;}}
-    for(const hp of help){const o=G.civs[hp.civ];for(const t of ARMY_T){const L=coList(hp.units[t]||0,25),rs=rowsFor(L.length);for(let k=0;k<L.length;k++){const u=placeNear(t,0,t==='archer'?2:4,rs[k],0,5,1+0.08*(o.lv-1),L[k]);if(u){u.fixed=true;u.ally=hp.civ;}}}}
+  else{placeWalls(0,G.city.wall,DWALL);const WC={turret:DWALL-2,ballista:DWALL-4,catapult:DWALL-7};for(const w of WEAPONS){const n=G.up[w]||0,rs=rowsFor(n);for(let k=0;k<n;k++){const u=placeNear(w,0,WC[w],rs[k],0,DWALL-1);if(u)u.fixed=true;}}
+    for(const hp of help){const o=G.civs[hp.civ];for(const t of ARMY_T){const L=coList(hp.units[t]||0,25),rs=rowsFor(L.length);for(let k=0;k<L.length;k++){const u=placeNear(t,0,t==='archer'?DWALL-4:DWALL-2,rs[k],0,DWALL-1,1+0.08*(o.lv-1),L[k]);if(u){u.fixed=true;u.ally=hp.civ;}}}}
     if(help.length)reinfTxt=`<p>🤝 <b>Your allies came to help!</b> ${help.map(h=>`<span style="color:${G.civs[h.civ].hex}">${G.civs[h.civ].name}</span> (${compText(h.units)})`).join(', ')} are already standing in your zone.</p>`;
     deployEnemy(units,mult);}
   B.sel=firstAvail();buildBattleScene();mode='battle';buildSel=null;setUI();buildPalette();if(B.btId)btPush();
@@ -1065,15 +1067,15 @@ function autoPlace(){clearPlacement();const zm=zoneMax(),def=B.kind==='defense';
   const tot=ARMY_T.reduce((a,t)=>a+(B.pool[t]||0),0),cells=zoneCells();let size=B.csize||SQ;const nco=sz=>ARMY_T.reduce((a,t)=>a+Math.ceil((B.pool[t]||0)/sz),0);
   while(nco(size)>cells-1&&size<CO_SIZES[CO_SIZES.length-1])size=CO_SIZES[CO_SIZES.indexOf(size)+1]||size*2;
   const P=(type,col,fl)=>{const L=coList(B.pool[type]||0,size);const rs=(fl?flankRows(L.length):rowsFor(L.length)).map(fit);L.forEach((m,k)=>{if(placeNear(type,0,col,rs[k],0,zm,0,m))B.pool[type]-=m;});};
-  if(def){const gaps=WALL_GAPS[G.city.wall];const melee=[];for(const t of ['spear','sword'])for(const m of coList(B.pool[t]||0,size))melee.push([t,m]);
-    const rows=gaps.length?melee.map((_,k)=>gaps[k%gaps.length]):rowsFor(melee.length);melee.forEach(([t,m],k)=>{if(placeNear(t,0,5,fit(rows[k]),0,zm,0,m))B.pool[t]-=m;});P('archer',2);}
-  else{P('sword',zm);P('spear',zm);P('archer',0);}
-  P('knight',def?1:zm-1,1);
+  if(def){const gaps=BGAPS[G.city.wall];const melee=[];for(const t of ['spear','sword'])for(const m of coList(B.pool[t]||0,size))melee.push([t,m]);
+    const rows=gaps.length?melee.map((_,k)=>gaps[k%gaps.length]):rowsFor(melee.length);melee.forEach(([t,m],k)=>{if(placeNear(t,0,DWALL-1,gaps.length?rows[k]:fit(rows[k]),0,zm,0,m))B.pool[t]-=m;});P('archer',DWALL-4);}
+  else{P('sword',zm);P('spear',zm);P('archer',Math.max(0,zm-3));}
+  P('knight',def?DWALL-6:zm-1,1);
   B.sel=firstAvail();buildPalette();if(B.coop)coSend();}
 const myPlaced=u=>u.side===0&&!u.fixed&&(!B.coop||u.id>=1e6);
 function clearPlacement(){for(const u of B.units)if(myPlaced(u))B.pool[u.type]+=u.n||1;B.units=B.units.filter(u=>!myPlaced(u));B.sel=firstAvail();if(B.coop)coSend();buildPalette();}
 function holding(u){if(u.aggro)return false;const tac=u.side===0?(u.co!=null&&B.co?(B.co.tac||'charge'):B.tactic):(B.kind==='attack'&&!B.civ.field?'hold':'charge');if(tac==='charge')return false;
-  if(B.t>10&&B.t-B.lastDmg>10){u.aggro=true;return false;}
+  if(B.t>30&&B.t-B.lastDmg>20){u.aggro=true;return false;}
   for(const o of B.units)if(o.alive&&o.side!==u.side&&o.type!=='wall'&&Math.hypot(o.c-u.c,o.r-u.r)<=4.5){u.aggro=true;return false;}
   return true;}
 function inRange(u,c,r,o){const D=UDEF[u.type];if(!D.ranged)return Math.max(Math.abs(o.c-c),Math.abs(o.r-r))<=1;const rg=D.range+(B.terrain[c+r*C]===HILL?1.5:0)+(u.type==='archer'&&u.side===0&&u.co==null&&u.ally==null&&G?0.5*(G.up.range||0):0);return Math.hypot(o.c-c,o.r-r)<=rg+0.01;}
@@ -1102,7 +1104,7 @@ function stepUnit(u,dt){const D=UDEF[u.type];u.cd-=dt;u.mt-=dt;if(!D.atk)return;
   if(n<0){n=bfsStep(u,(c,r)=>inRange(u,c,r,t),false);if(n>=0&&B.occ[n]){u.mt=0.2;return;}}
   if(n<0){let w=null,bw=1e9;for(const o of B.units)if(o.alive&&o.side!==u.side&&o.type==='wall'){const d=Math.hypot(o.c-u.c,o.r-u.r);if(d<bw){bw=d;w=o;}}
     if(w){if(inRange(u,u.c,u.r,w)){if(u.cd<=0)attack(u,w);return;}n=bfsStep(u,(c,r)=>inRange(u,c,r,w),false);if(n>=0&&B.occ[n]){u.mt=0.2;return;}}}
-  if(n>=0&&B.kind==='defense'&&u.side===0&&B.tactic==='hold'&&n%C>6){u.mt=.3;return;}
+  if(n>=0&&B.kind==='defense'&&u.side===0&&B.tactic==='hold'&&n%C>DWALL){u.mt=.3;return;}
   if(n>=0){const nc=n%C,nr=(n/C)|0,diag=nc!==u.c&&nr!==u.r;u.fa=Math.atan2(nc-u.c,nr-u.r);B.occ[u.c+u.r*C]=null;u.c=nc;u.r=nr;B.occ[n]=u;u.mt=D.move*(B.terrain[n]===FOREST?1.6:1)*(diag?1.4:1)/(u.side===0&&u.co==null&&u.ally==null?1+.08*(G.up.drill||0):1);u.mvSpd=(diag?1.4142:1)/u.mt;}
   else u.mt=0.3;}
 const TCODE={sword:0,spear:1,archer:2,knight:3,turret:4,ballista:5,catapult:6,wall:7},TNAME=Object.keys(TCODE);
@@ -1111,7 +1113,7 @@ function btSnap(){return {id:B.btId,to:B.civ.pvp==null?null:B.civ.pvp,co:B.co?B.
 function btPush(final){if(!B||!B.civ||B.spect||(B.civ.pvp==null&&!B.co)||!MP.room||!MP.room.battle)return;try{MP.room.battle(final?Object.assign(btSnap(),{ph:'done'}):btSnap()).catch(()=>{});}catch(e){}}
 function spectStart(bt,k){if(!bt||mode!=='world')return;const o=G.others[k]||{name:bt.an};const terr=new Uint8Array(C*R);for(let i=0;i<C*R;i++){const c=i%C,r=(i/C)|0;terr[r*C+(C-1-c)]=+(bt.tr||'')[i]||0;}
   ENEMY_HEX=pvpHex(+k);player.path=[];player.gather=null;keys={};
-  B={kind:'defense',spect:true,btId:bt.id,civ:{name:o.name,hex:pvpHex(+k),lv:o.lv||1,wall:o.wall||0},pool:{},units:[],projs:[],fx:[],phase:'fight',terrain:terr,bld:(bt.bl||[]).map(([kk,c,r])=>({k:kk?'keep':'house',c:C-1-c,r})),uid:0,occ:[],wl:[bt.wl||0,o.wall||0],t:0,lastSnap:Date.now(),wallCol:C-1-10};
+  B={kind:'defense',spect:true,btId:bt.id,civ:{name:o.name,hex:pvpHex(+k),lv:o.lv||1,wall:o.wall||0},pool:{},units:[],projs:[],fx:[],phase:'fight',terrain:terr,bld:(bt.bl||[]).map(([kk,c,r])=>({k:kk?'keep':'house',c:C-1-c,r})),uid:0,occ:[],wl:[bt.wl||0,o.wall||0],t:0,lastSnap:Date.now(),wallCol:C-1-AWALL};
   buildBattleScene();mode='battle';buildSel=null;setUI();buildPalette();spectApply(bt);}
 function spectApply(bt){if(!B||!B.spect)return;B.lastSnap=Date.now();const co=!!B.coop;
   if(co){const was=B.phase;B.phase=bt.ph==='deploy'?'deploy':bt.ph==='fight'?'fight':'over';if(was==='deploy'&&B.phase!=='deploy'){B.units=B.units.filter(u=>u.id<1e6);buildPalette();}if(bt.win!=null)B.win=!!bt.win;B.hostReady=bt.cr;}
@@ -1124,11 +1126,11 @@ function spectApply(bt){if(!B||!B.spect)return;B.lastSnap=Date.now();const co=!!
   for(const u of B.units)if(!seen.has(u.id)&&u.alive&&u.id<1e6){u.alive=false;u.deadT=1;}}
 const COHEX='#1fae8c';
 function coFill(){const left={};for(const t of ARMY_T)left[t]=(B.co.units[t]||0)-B.units.filter(u=>u.co!=null&&u.type===t).reduce((a,u)=>a+(u.n||1),0);
-  const lo=B.rowLo,hi=B.rowHi;B.rowLo=5;B.rowHi=9;for(const t of ARMY_T){const L=coList(Math.max(0,left[t]),25),rs=rowsFor(L.length).map(r=>5+Math.floor(r/2));for(let k=0;k<L.length;k++){const u=placeNear(t,0,t==='archer'?1:4,rs[k],0,5,1,L[k]);if(u){u.co=B.co.k;u.tint=COHEX;}}}B.rowLo=lo;B.rowHi=hi;
+  const lo=B.rowLo,hi=B.rowHi;B.rowLo=HALF;B.rowHi=R-1;for(const t of ARMY_T){const L=coList(Math.max(0,left[t]),25),rs=rowsFor(L.length).map(r=>HALF+Math.floor(r/2));for(let k=0;k<L.length;k++){const u=placeNear(t,0,t==='archer'?4:8,rs[k],0,9,1,L[k]);if(u){u.co=B.co.k;u.tint=COHEX;}}}B.rowLo=lo;B.rowHi=hi;
   for(const u of B.units)if(u.co!=null)u.fixed=false;}
 function coSync(cp){if(!B||!B.co||B.phase!=='deploy')return;if(cp.leave){B.units=B.units.filter(u=>u.co==null);toast(`👤 ${B.co.name} pulled their army out.`);B.co=null;BS&&buildBattleScene();buildPalette();return;}
   B.units=B.units.filter(u=>u.co==null);const cnt={};
-  for(const [tc,c,r,n0] of (cp.u||[])){const t=TNAME[tc];if(!ARMY_T.includes(t))continue;const n=Math.max(1,Math.min(100,n0|0||1));if((cnt[t]||0)+n>(B.co.units[t]||0))continue;if(c<0||c>5||r<5||r>=R||!cellFree(c,r))continue;cnt[t]=(cnt[t]||0)+n;
+  for(const [tc,c,r,n0] of (cp.u||[])){const t=TNAME[tc];if(!ARMY_T.includes(t))continue;const n=Math.max(1,Math.min(100,n0|0||1));if((cnt[t]||0)+n>(B.co.units[t]||0))continue;if(c<0||c>9||r<HALF||r>=R||!cellFree(c,r))continue;cnt[t]=(cnt[t]||0)+n;
     const u=addUnit(t,0,c,r,1,0,n);u.co=B.co.k;u.tint=COHEX;u.fixed=true;}
   B.co.ready=!!cp.ready;B.co.tac=cp.tac==='hold'?'hold':'charge';updateBctl();}
 function coSend(){if(!B||!B.coop||!MP.room||!MP.room.coop)return;const u=B.units.filter(x=>x.side===0&&x.id>=1e6).map(x=>[TCODE[x.type],x.c,x.r,x.n||1]);
@@ -1136,7 +1138,7 @@ function coSend(){if(!B||!B.coop||!MP.room||!MP.room.coop)return;const u=B.units
 function coStart(bt,k){if(!bt||mode!=='world')return;const o=G.others[k]||{name:bt.an};const terr=new Uint8Array(C*R);for(let i=0;i<C*R;i++)terr[i]=+(bt.tr||'')[i]||0;
   ENEMY_HEX=bt.th||'#c0392b';player.path=[];player.gather=null;keys={};const jm=G.marches.find(m=>m.kind==='join'&&String(m.tgt.k)===String(k));const pool={};for(const t of ARMY_T)pool[t]=((jm||{}).units||{})[t]||0;
   B={kind:'attack',spect:true,coop:true,host:k,hostName:o.name,hostHex:pvpHex(+k),btId:bt.id,civ:{name:bt.tn||'the enemy',hex:bt.th||'#c0392b',lv:bt.tl||1,wall:bt.wl||0,pvp:bt.tp?1:null},pool,units:[],projs:[],fx:[],phase:'deploy',tactic:'charge',ready:false,
-    terrain:terr,bld:(bt.bl||[]).map(([kk,c,r])=>({k:kk?'keep':'house',c,r})),uid:1e6,occ:[],wl:[0,bt.wl||0],t:0,lastSnap:Date.now(),rowLo:5,rowHi:9,joinM:jm};B.csize=pickSize(armyTotal(pool),24);
+    terrain:terr,bld:(bt.bl||[]).map(([kk,c,r])=>({k:kk?'keep':'house',c,r})),uid:1e6,occ:[],wl:[0,bt.wl||0],t:0,lastSnap:Date.now(),rowLo:HALF,rowHi:R-1,joinM:jm};B.csize=pickSize(armyTotal(pool),80);
   B.sel=firstAvail();buildBattleScene();mode='battle';buildSel=null;setUI();buildPalette();spectApply(bt);coSend();
   showModal(`<h2>🤝 You reached ${B.civ.pvp?'👤 ':'the '}<span style="color:${B.civ.hex}">${B.civ.name}</span> with 👤 ${o.name}!</h2><p>You'll fight side by side. The setup zone is twice as big: <b>you have the bottom half</b> (blue), 👤 ${o.name} has the top half.</p><p>Place your soldiers, then tap <b>✅ Ready</b>. 👤 ${o.name} starts the fight.</p>`,[{t:'Set up',primary:true}]);}
 function coEnd(msg){if(!B||!B.coop)return;const id=B.btId,res=B.coRes;MP.coDone[id]=1;B=null;BS=null;mode='world';setUI();updHUD();
@@ -1204,13 +1206,17 @@ const S=2;
 const cellX=c=>(c-C/2+.5)*S,cellZ=r=>(r-R/2+.5)*S;
 const hillY=(c,r)=>{c=Math.round(c);r=Math.round(r);return c>=0&&c<C&&r>=0&&r<R&&B.terrain[c+r*C]===HILL?.38:0;};
 const FM=8;
-function paintField(){const P=48,cw=(C+2*FM)*P,ch=(R+2*FM)*P,c=document.createElement('canvas');c.width=cw;c.height=ch;const g=c.getContext('2d');const rnd=mulberry32(B.uid+77);
+function meadowTex(){const n=512,c=document.createElement('canvas');c.width=c.height=n;const g=c.getContext('2d'),rnd=mulberry32(4242);g.fillStyle='#5a883d';g.fillRect(0,0,n,n);
+  for(let k=0;k<700;k++){const x=rnd()*n,y=rnd()*n,r=8+rnd()*40;const sh=rnd()<.5?'rgba(40,70,25,':'rgba(120,160,70,';for(const [ox,oy] of [[0,0],[n,0],[-n,0],[0,n],[0,-n]]){const gr=g.createRadialGradient(x+ox,y+oy,0,x+ox,y+oy,r);gr.addColorStop(0,sh+(.18+rnd()*.15)+')');gr.addColorStop(1,sh+'0)');g.fillStyle=gr;g.fillRect(x+ox-r,y+oy-r,r*2,r*2);}}
+  g.globalCompositeOperation='overlay';g.globalAlpha=.4;g.drawImage(getDetail(),0,0,n,n);g.globalAlpha=1;g.globalCompositeOperation='source-over';
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;}
+function paintField(){const P=36,cw=(C+2*FM)*P,ch=(R+2*FM)*P,c=document.createElement('canvas');c.width=cw;c.height=ch;const g=c.getContext('2d');const rnd=mulberry32(B.uid+77);
   g.fillStyle='#5a883d';g.fillRect(0,0,cw,ch);
-  for(let k=0;k<2200;k++){const x=rnd()*cw,y=rnd()*ch,r=10+rnd()*50;const gr=g.createRadialGradient(x,y,0,x,y,r);const sh=rnd()<.5?'rgba(40,70,25,':'rgba(120,160,70,';gr.addColorStop(0,sh+(.18+rnd()*.15)+')');gr.addColorStop(1,sh+'0)');g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);}
-  const att=B.kind==='attack',x0=att?(10+FM)*P:0,x1=att?cw:(6+FM)*P+P*.5;
+  for(let k=0;k<4200;k++){const x=rnd()*cw,y=rnd()*ch,r=8+rnd()*40;const gr=g.createRadialGradient(x,y,0,x,y,r);const sh=rnd()<.5?'rgba(40,70,25,':'rgba(120,160,70,';gr.addColorStop(0,sh+(.18+rnd()*.15)+')');gr.addColorStop(1,sh+'0)');g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);}
+  const att=B.kind==='attack',x0=att?((B.wallCol!=null?B.wallCol:AWALL)+FM)*P:0,x1=att?cw:((B.wallCol!=null?B.wallCol:DWALL)+FM)*P+P*.5;
   if(!B.civ.field){const gr=g.createLinearGradient(att?x0-P*.6:x1,0,att?x0+P*.3:x1-P*.9,0);gr.addColorStop(0,'rgba(150,130,95,0)');gr.addColorStop(1,'rgba(150,130,95,1)');g.fillStyle=gr;g.fillRect(att?x0-P*.6:x1-P*.9,0,P*1.5,ch);
   g.fillStyle='#968260';g.fillRect(att?x0+P*.3:0,0,att?cw-x0:x1-P*.9,ch);
-  for(let k=0;k<6000;k++){const x=(att?x0:0)+rnd()*(att?cw-x0:x1-P),y=rnd()*ch;g.fillStyle=`rgba(${rnd()<.5?'70,60,45':'190,175,140'},${.15+rnd()*.25})`;g.beginPath();g.ellipse(x,y,3+rnd()*5,2+rnd()*4,rnd()*3,0,7);g.fill();}}
+  for(let k=0;k<9000;k++){const x=(att?x0:0)+rnd()*(att?cw-x0:x1-P),y=rnd()*ch;g.fillStyle=`rgba(${rnd()<.5?'70,60,45':'190,175,140'},${.15+rnd()*.25})`;g.beginPath();g.ellipse(x,y,3+rnd()*5,2+rnd()*4,rnd()*3,0,7);g.fill();}}
   // worn path from the field to the gate area
   g.globalCompositeOperation='overlay';g.globalAlpha=.4;g.drawImage(getDetail(),0,0,cw,ch);g.globalAlpha=1;g.globalCompositeOperation='source-over';
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;}
@@ -1219,11 +1225,11 @@ function makeKeepModel(lv,hex){const g=new THREE.Group(),st=MAT.stone(),roof=M(h
   box(g,.8,1.2,.08,MAT.dwood(),0,.6,w/2+.02);for(const [x,z] of [[-w/2,-w/2],[w/2,-w/2],[-w/2,w/2],[w/2,w/2]]){cyl(g,.45,h+.8,st,x,(h+.8)/2,z,14);cone(g,.55,.9,roof,x,h+1.25,z,16);}
   for(let k=0;k<4;k++)box(g,.3,.45,.06,M('#2a2420',.6),-.8+k*.55,h*.65,w/2+.02);return g;}
 function buildBattleScene(){
-  const scene=new THREE.Scene();scene.background=makeSky('#7fb2e0','#dfe9ee');scene.fog=new THREE.Fog(col('#cfdde6'),45,110);
-  const sun=addLights(scene,26);sun.position.set(-18,30,-14);sun.target.position.set(0,0,0);
+  const scene=new THREE.Scene();scene.background=makeSky('#7fb2e0','#dfe9ee');scene.fog=new THREE.Fog(col('#cfdde6'),60,170);
+  const sun=addLights(scene,30);sun.position.set(-18,30,-14);sun.target.position.set(0,0,0);
   const att=B.kind==='attack',hex=att?B.civ.hex:'#2f62c9',lv=att?B.civ.lv:G.city.lv;
-  const gtex=new THREE.CanvasTexture(getDetail());gtex.wrapS=gtex.wrapT=THREE.RepeatWrapping;gtex.repeat.set(12,12);gtex.encoding=THREE.sRGBEncoding;
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(240,240),new THREE.MeshStandardMaterial({color:col('#557f39'),map:gtex,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.06;ground.receiveShadow=true;scene.add(ground);
+  const gtex=meadowTex();gtex.repeat.set(15,15);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(420,420),new THREE.MeshStandardMaterial({color:0xffffff,map:gtex,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.06;ground.receiveShadow=true;scene.add(ground);
   const field=new THREE.Mesh(new THREE.PlaneGeometry((C+2*FM)*S,(R+2*FM)*S),new THREE.MeshStandardMaterial({map:paintField(),roughness:1}));field.rotation.x=-Math.PI/2;field.receiveShadow=true;scene.add(field);
   const cityGround=new THREE.Mesh(new THREE.PlaneGeometry(40,(R+16)*S),M('#8f7c5c',1));cityGround.rotation.x=-Math.PI/2;cityGround.position.set(att?C*S/2+FM*S+20:-C*S/2-FM*S-20,-.04,0);cityGround.receiveShadow=true;const FLD=!!B.civ.field;if(!FLD)scene.add(cityGround);
   const hillMat=M('#6a9446',.95);
@@ -1233,40 +1239,56 @@ function buildBattleScene(){
     if(t===HILL)part(scene,GEO.sph,hillMat,S*.62,.45,S*.62,x,-.05,z);
     if(t===FOREST){for(const [a,b] of [[-.62,-.55],[.6,-.4],[-.35,.62],[.55,.6]].slice(0,3+(h%2)))(h%3?makePine:makeOak)(scene,x+a*S*.5+((h%5)-2)*.05,z+b*S*.5,1.15+(h%4)*.08);}
     if(t===RCK){part(scene,GEO.dode,MAT.stone(),S*.36,S*.26,S*.34,x,S*.08,z,.2,h,0);part(scene,GEO.dode,MAT.dstone(),S*.18,S*.13,S*.17,x+.55,.06,z+.45,0,h*2,0);}
-    if(!blockT(t)){const y=(t===HILL?.42:0)+.02;if(c<=zoneMax()&&(B.co||B.coop)&&!rowOK(r)){const p=new THREE.Mesh(GEO.plane,zp);p.scale.set(S*.9,1,S*.9);p.position.set(x,y,z);zones.add(p);}else if(c<=zoneMax()){const p=new THREE.Mesh(GEO.plane,zb);p.scale.set(S*.9,1,S*.9);p.position.set(x,y,z);zones.add(p);}else if(c>=11){const p=new THREE.Mesh(GEO.plane,zr);p.scale.set(S*.9,1,S*.9);p.position.set(x,y,z);zones.add(p);}}}
+    if(!blockT(t)){const y=(t===HILL?.42:0)+.02;if(c<=zoneMax()&&(B.co||B.coop)&&!rowOK(r)){const p=new THREE.Mesh(GEO.plane,zp);p.scale.set(S*.9,1,S*.9);p.position.set(x,y,z);zones.add(p);}else if(c<=zoneMax()){const p=new THREE.Mesh(GEO.plane,zb);p.scale.set(S*.9,1,S*.9);p.position.set(x,y,z);zones.add(p);}else if(c>=EZ){const p=new THREE.Mesh(GEO.plane,zr);p.scale.set(S*.9,1,S*.9);p.position.set(x,y,z);zones.add(p);}}}
   // the city: keep, houses, wall towers, and more city beyond the edge
-  const wallCol=att?10:6,wl=att?B.civ.wall:G.city.wall,wallC=['#d8c39a','#cdb48a','#e0cfa8'],roofC=['#9b3a26','#7a4a2a','#8a5a3a'];
+  const wallCol=att?AWALL:DWALL,wl=att?B.civ.wall:G.city.wall,wallC=['#d8c39a','#cdb48a','#e0cfa8'],roofC=['#9b3a26','#7a4a2a','#8a5a3a'];
   for(const b of B.bld){if(b.k==='keep'){const k=makeKeepModel(lv,hex);k.position.set(cellX(b.c),0,cellZ(b.r));if(!att)k.rotation.y=Math.PI;scene.add(k);}
     else{const hs=makeBuilding('house');hs.scale.setScalar(2.1);hs.position.set(cellX(b.c),0,cellZ(b.r));hs.rotation.y=(hash(b.c,b.r)%4)*Math.PI/2;scene.add(hs);}}
   const wallCol2=B.wallCol!=null?B.wallCol:wallCol;if(wl>0){const stone=wl>=3;for(const z of [cellZ(-.6),cellZ(R-.4)]){cyl(scene,.7,1.6+.25*wl,stone?MAT.stone():MAT.wood(),cellX(wallCol2),(1.6+.25*wl)/2,z,14);cone(scene,.85,1,M(hex,.8),cellX(wallCol2),1.6+.25*wl+.5,z,16);}}
   const side=att?1:-1,edge=side*(C*S/2+S);const rnd=mulberry32(Math.floor(Math.random()*1e6));
   if(!FLD)for(let k=0;k<26;k++){const x=edge+side*(2+rnd()*22),z=(rnd()-.5)*(R*S+14);const hs=makeBuilding(rnd()<.85?'house':'barracks');hs.scale.setScalar(2+rnd()*.6);hs.position.set(x,0,z);hs.rotation.y=Math.floor(rnd()*4)*Math.PI/2;scene.add(hs);}
   if(!FLD){const k=makeKeepModel(lv+1,hex);k.scale.setScalar(1.5);k.position.set(edge+side*14,0,0);scene.add(k);}
-  for(let k=0;k<190;k++){const a=rnd()*Math.PI*2,rr=24+rnd()*42;const x=Math.cos(a)*rr*1.2,z=Math.sin(a)*rr*.95;if(Math.abs(x)<C*S/2+3&&Math.abs(z)<R*S/2+3)continue;if(z>R*S/2+2&&Math.abs(x)<30&&rnd()<.75)continue;if(!FLD&&side*x>C*S/2-6)continue;
-    if(rnd()<.7)makePine(scene,x,z,1.3+rnd()*.9);else makeOak(scene,x,z,1.3+rnd()*.7);}
-  const camera=new THREE.PerspectiveCamera(42,VW/VH,0.1,400);
+  {const hwF=C*S/2,hdF=R*S/2;for(let k=0;k<340;k++){const x=(rnd()-.5)*(2*hwF+110),z=-hdF-3-rnd()*45+(rnd()<.35?rnd()*(2*hdF+60):0);if(Math.abs(x)<hwF+3&&Math.abs(z)<hdF+3)continue;if(z>hdF+2&&rnd()<.8)continue;if(!FLD&&side*x>hwF-6)continue;
+    if(rnd()<.7)makePine(scene,x,z,1.3+rnd()*.9);else makeOak(scene,x,z,1.3+rnd()*.7);}}
+  const camera=new THREE.PerspectiveCamera(42,VW/VH,0.1,700);
   const ghostMat=new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:.5});
   const rangeMk=new THREE.Mesh(GEO.ring,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.45,depthWrite:false}));rangeMk.visible=false;scene.add(rangeMk);
   const hoverMk=new THREE.Mesh(GEO.plane,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.3,depthWrite:false}));hoverMk.scale.set(S*.9,1,S*.9);hoverMk.visible=false;scene.add(hoverMk);
-  const rain=makeRain(1100,30,16,22);scene.add(rain);
-  const grass=makeGrass(6500);grass.visible=FX.hi;{const rnd=mulberry32(B.uid*31+7);let n=0;const cityC=att?10:6;
-    for(let k=0;k<9000&&n<6500;k++){const x=(rnd()-.5)*(C*S+26),z=(rnd()-.5)*(R*S+16),c=Math.floor(x/S+C/2),r=Math.floor(z/S+R/2);
+  const rain=makeRain(1800,36,18,28);scene.add(rain);
+  const grass=makeGrass(14000);grass.visible=FX.hi;{const rnd=mulberry32(B.uid*31+7);let n=0;const cityC=B.wallCol!=null?B.wallCol:att?AWALL:DWALL;
+    for(let k=0;k<20000&&n<14000;k++){const x=(rnd()-.5)*(C*S+26),z=(rnd()-.5)*(R*S+16),c=Math.floor(x/S+C/2),r=Math.floor(z/S+R/2);
       if(c>=0&&c<C&&r>=0&&r<R){const t=B.terrain[c+r*C];if(blockT(t))continue;if(att?c>=cityC:c<=cityC)continue;}else if(att?x>(cityC-C/2)*S-1:x<(cityC+1-C/2)*S+1){if(!B.civ.field&&Math.abs(z)<R*S/2+4)continue;}
       const y=(c>=0&&c<C&&r>=0&&r<R&&B.terrain[c+r*C]===HILL)?hillY(x/S+C/2-.5,z/S+R/2-.5):0;_gp.set(x,y-.04,z);_gq.setFromAxisAngle(_gy,rnd()*7);const sc=1.1+rnd()*.8;_gs.set(sc,sc*(.8+rnd()*.5),sc);_gm.compose(_gp,_gq,_gs);grass.setMatrixAt(n++,_gm);}
     grass.count=n;grass.instanceMatrix.needsUpdate=true;}scene.add(grass);
-  BS={scene,camera,sun,rain,grass,zones,um:new Map(),pm:new Map(),ghost:null,ghostT:null,ghostMat,rangeMk,hoverMk,d:40,tz:0,t:0};}
-function fitBattleCam(){const cam=BS.camera;cam.aspect=VW/VH;cam.fov=VW<VH?55:42;cam.updateProjectionMatrix();
-  const ph=$('bpanel').offsetHeight||130,top=48;const aT=1-2*top/VH,aB=-1+2*ph/VH,aH=aT-aB,aC=(aT+aB)/2;const el=VW<VH?1.05:.9;
-  let d=BS.d,tz=BS.tz;const hw=C*S/2+.3,hd=R*S/2+.3;
-  for(let it=0;it<8;it++){cam.position.set(0,Math.sin(el)*d,tz+Math.cos(el)*d);cam.lookAt(0,0,tz);cam.updateMatrixWorld();
-    let x0=9,x1=-9,y0=9,y1=-9;for(const [x,y,z] of [[-hw,0,-hd],[hw,0,-hd],[-hw,0,hd],[hw,0,hd],[-hw,1.8,-hd],[hw,1.8,-hd]]){pv.set(x,y,z).project(cam);x0=Math.min(x0,pv.x);x1=Math.max(x1,pv.x);y0=Math.min(y0,pv.y);y1=Math.max(y1,pv.y);}
-    const s=Math.max((x1-x0)/1.92,(y1-y0)/(aH*.96));d*=Math.max(.6,Math.min(1.6,s));d=Math.max(12,Math.min(140,d));tz-=((y1+y0)/2-aC)*d*.3;tz=Math.max(-25,Math.min(25,tz));}
-  BS.d=d;BS.tz=tz;}
+  BS={scene,camera,sun,rain,grass,zones,um:new Map(),pm:new Map(),ghost:null,ghostT:null,ghostMat,rangeMk,hoverMk,d:40,cx:0,cz:0,auto:true,snap:true,fd:40,t:0};}
+const camEl=()=>VW<VH?1.05:.9;
+/* distance + look-at depth so a box (centre cx,cz, half sizes hw,hd) fits between the title and the bottom panel */
+function camFit(cx,cz,hw,hd){const cam=BS.camera;const ph=$('bpanel').offsetHeight||130,top=56;const aT=1-2*top/VH,aB=-1+2*ph/VH,aH=aT-aB,aC=(aT+aB)/2,el=camEl();
+  let d=BS.fd||40,tz=cz;
+  for(let it=0;it<10;it++){cam.position.set(cx,Math.sin(el)*d,tz+Math.cos(el)*d);cam.lookAt(cx,0,tz);cam.updateMatrixWorld();
+    let x0=9,x1=-9,y0=9,y1=-9;for(const [x,y,z] of [[-hw,0,-hd],[hw,0,-hd],[-hw,0,hd],[hw,0,hd],[-hw,1.6,-hd],[hw,1.6,-hd]]){pv.set(cx+x,y,cz+z).project(cam);x0=Math.min(x0,pv.x);x1=Math.max(x1,pv.x);y0=Math.min(y0,pv.y);y1=Math.max(y1,pv.y);}
+    const sc=Math.max((x1-x0)/1.9,(y1-y0)/(aH*.95));d*=Math.max(.6,Math.min(1.6,sc));d=Math.max(9,Math.min(150,d));tz-=((y1+y0)/2-aC)*d*.3;}
+  BS.fd=d;return [d,tz];}
+function camGoal(){let c0,c1,r0=0,r1=R-1;const al=B.units.filter(u=>u.alive&&u.type!=='wall');
+  if(B.phase==='deploy'){c0=0;c1=Math.min(C-1,zoneMax()+8);}
+  else if(B.phase==='watch'||!al.length){c0=0;c1=C-1;}
+  else{c0=C;c1=0;r0=R;r1=0;for(const u of al){c0=Math.min(c0,u.rx);c1=Math.max(c1,u.rx);r0=Math.min(r0,u.ry);r1=Math.max(r1,u.ry);}c0-=2;c1+=2;r0-=1.5;r1+=1.5;
+    const mw=13,md=7;if(c1-c0<mw){const m=(c0+c1)/2;c0=m-mw/2;c1=m+mw/2;}if(r1-r0<md){const m=(r0+r1)/2;r0=m-md/2;r1=m+md/2;}}
+  const cx=(cellX(c0)+cellX(c1))/2,cz=(cellZ(r0)+cellZ(r1))/2,hw=(c1-c0+1)*S/2,hd=(r1-r0+1)*S/2;return [cx,cz,hw,hd];}
+function fitBattleCam(dt){const cam=BS.camera;cam.aspect=VW/VH;cam.fov=VW<VH?55:42;cam.updateProjectionMatrix();const el=camEl();
+  if(BS.auto){const [cx,cz,hw,hd]=camGoal();const [d,tz]=camFit(cx,cz,hw,hd);const k=BS.snap?1:Math.min(1,dt*1.8);BS.snap=false;BS.d+=(d-BS.d)*k;BS.cx+=(cx-BS.cx)*k;BS.cz+=(tz-BS.cz)*k;}
+  else{const sp=BS.d*.9*dt;let mv=0;if(keys.KeyA||keys.ArrowLeft){BS.cx-=sp;mv=1;}if(keys.KeyD||keys.ArrowRight){BS.cx+=sp;mv=1;}if(keys.KeyW||keys.ArrowUp){BS.cz-=sp;mv=1;}if(keys.KeyS||keys.ArrowDown){BS.cz+=sp;mv=1;}}
+  BS.cx=Math.max(-C*S/2-8,Math.min(C*S/2+8,BS.cx));BS.cz=Math.max(-R*S/2-10,Math.min(R*S/2+14,BS.cz));BS.d=Math.max(9,Math.min(150,BS.d));
+  cam.position.set(BS.cx,Math.sin(el)*BS.d,BS.cz+Math.cos(el)*BS.d);cam.lookAt(BS.cx,0,BS.cz);cam.updateMatrixWorld();
+  const f=BS.scene.fog;f.near=BS.d*.9+25;f.far=BS.d*2.4+80;const sr=Math.max(26,Math.min(80,BS.d*.75)),sc=BS.sun.shadow.camera;if(Math.abs(sc.right-sr)>2){sc.left=-sr;sc.right=sr;sc.top=sr;sc.bottom=-sr;sc.updateProjectionMatrix();}}
+function battleCamManual(){if(BS&&BS.auto){BS.auto=false;updateBctl();}}
+function battlePan(dx,dy){if(!BS)return;const cam=BS.camera,wpp=2*BS.d*Math.tan(cam.fov*Math.PI/360)/VH;BS.cx-=dx*wpp;BS.cz-=dy*wpp/Math.sin(camEl());battleCamManual();}
+function battleZoom(f){if(!BS)return;BS.d=Math.max(9,Math.min(150,BS.d*f));battleCamManual();}
 const FORM={1:[[0,0]],2:[[-.38,0],[.38,0]],3:[[0,-.36],[-.42,.3],[.42,.3]],4:[[-.4,-.36],[.4,-.36],[-.4,.36],[.4,.36]],5:[[-.46,-.42],[.46,-.42],[0,0],[-.46,.42],[.46,.42]]};
-function makeCompany(u){const g=new THREE.Group(),D=UDEF[u.type],n=D.static?1:Math.min(5,u.n||1),F=FORM[n],sc=n>1?.68:1;g.userData.figs=[];
+function makeCompany(u){const g=new THREE.Group(),D=UDEF[u.type],cap=B.units.length>110?3:B.units.length>70?4:5,n=D.static?1:Math.min(cap,u.n||1),F=FORM[n],sc=n>1?.68:1;g.userData.figs=[];
   for(let k=0;k<n;k++){const f=makeUnit(u.type,u.side,{wl:B.wl[u.side],hex:u.tint});if(n>1){f.scale.multiplyScalar(sc);const j=(Math.sin(u.id*7.3+k*3.1))*.06;f.position.set(F[k][0]*S*.5+j,0,F[k][1]*S*.5-j);if(k)f.traverse(o=>{if(o.isMesh)o.castShadow=false;});}
     g.add(f);g.userData.figs.push(f);}return g;}
-function renderBattle(dt){BS.t+=dt;fitBattleCam();const cam=BS.camera,Sc=BS.scene;computeEnv(dt);applyEnv(BS,0,0,.35);stepRain(BS.rain,dt,0,0);
+function renderBattle(dt){BS.t+=dt;fitBattleCam(dt);const cam=BS.camera,Sc=BS.scene;computeEnv(dt);applyEnv(BS,BS.cx,BS.cz,.35);stepRain(BS.rain,dt,BS.cx,BS.cz);
   BS.zones.visible=B.phase==='deploy';
   const ids=new Set();
   for(const u of B.units){if(!u.alive&&u.deadT>2.2)continue;ids.add(u.id);let g=BS.um.get(u.id);
@@ -1318,6 +1340,7 @@ function buildPalette(){const el=$('bpal');el.innerHTML='';
 function startFight(){if(B.co)coFill();B.phase='fight';B.t=0;B.lastDmg=0;buildPalette();}
 function updateBctl(){const el=$('bctl');el.innerHTML='';const mk=(html,cls,fn,dis)=>{const b=document.createElement('button');b.className='cb '+(cls||'');b.innerHTML=html;b.onclick=fn;b.disabled=!!dis;el.appendChild(b);return b;};
   if(!B)return;
+  if(BS&&!BS.auto)mk('🎥 Follow battle','',()=>{BS.auto=true;updateBctl();});
   if(B.coop){const hn=B.hostName;
     if(B.phase==='deploy'){mk(B.tactic==='charge'?'🎯 Tactic: Charge':'🛡 Tactic: Hold','',()=>{B.tactic=B.tactic==='charge'?'hold':'charge';updateBctl();coSend();});mk('✨ Auto-place','',()=>{if(!B.ready)autoPlace();});mk('🧹 Clear','',()=>{if(!B.ready)clearPlacement();});
       mk(B.ready?'↩ Not ready':'✅ Ready','fight',()=>{B.ready=!B.ready;updateBctl();coSend();},!B.units.some(u=>u.side===0&&u.id>=1e6));
@@ -1332,7 +1355,7 @@ function updateBctl(){const el=$('bctl');el.innerHTML='';const mk=(html,cls,fn,d
     if(B.kind==='attack')mk('↩ Withdraw','',()=>{if(B.btId){try{MP.room&&MP.room.battle&&MP.room.battle(null);}catch(e){}}clearPlacement();const p={};for(const t of ARMY_T)p[t]=B.pool[t];sendHome(p,B.civ,B.origin);B=null;BS=null;mode='world';setUI();updHUD();toast('🚩 Your army turns back for home.');});}
   else if(B.phase==='fight'){mk('⏩ Speed '+B.speed+'x','',()=>{B.speed=B.speed===1?2:B.speed===2?3:1;updateBctl();});if(B.kind==='attack')mk('🏳 Retreat','',()=>{B.phase='done';finishBattle(false,true);});}
   const s=B.sel&&UDEF[B.sel];
-  $('bhint').innerHTML=B.phase==='deploy'?`${B.co?`🤝 <b>👤 ${B.co.name}</b> sets up in the bottom half and is <b>${B.co.ready?'READY':'still placing soldiers'}</b>. `:''}<b>Set up:</b> tap a <span style="color:#93c5fd">blue square</span> to place ${s?s.icon+' '+s.name+' ('+s.desc+')':'a unit'}. Tap a placed unit to pick it back up.${B.kind==='defense'?' Your walls are fixed: <b>guard the gaps</b>.':''}<br>🎯 <b>Charge</b> = attack right away · 🛡 <b>Hold</b> = wait for the enemy to come close${B.kind==='defense'?' and stay behind the walls':''}. 🌲 Forest blocks 40% of arrow damage · ⛰ Hills give archers more range.`
+  $('bhint').innerHTML=B.phase==='deploy'?`${B.co?`🤝 <b>👤 ${B.co.name}</b> sets up in the bottom half and is <b>${B.co.ready?'READY':'still placing soldiers'}</b>. `:''}<b>Set up:</b> tap a <span style="color:#93c5fd">blue square</span> to place ${s?s.icon+' '+s.name+' ('+s.desc+')':'a unit'}. Tap a placed unit to pick it back up.${B.kind==='defense'?' Your walls are fixed: <b>guard the gaps</b>.':''}<br>🎯 <b>Charge</b> = attack right away · 🛡 <b>Hold</b> = wait for the enemy to come close${B.kind==='defense'?' and stay behind the walls':''}. 🌲 Forest blocks 40% of arrow damage · ⛰ Hills give archers more range.<br>🎥 Drag to look around · scroll or pinch to zoom · the camera follows the fighting until you move it.`
     :`Spearmen beat Knights · Knights hunt Archers · Archers shred Swordsmen and Spearmen · Swordsmen beat Spearmen`;}
 
 /* ================= TITLE SCENE ================= */
@@ -1480,18 +1503,28 @@ function battleClick(x,y){if(!B||B.phase!=='deploy')return;const h=pickGround(BS
   if(!B.sel||B.pool[B.sel]<=0){toast('No more of that unit. Pick another one below.');return;}
   if(!cellFree(c,r)){toast("Can't place there.");return;}
   const take=Math.min(B.pool[B.sel],B.csize||SQ);addUnit(B.sel,0,c,r,B.coop?pMult(B.sel):0,0,take);B.pool[B.sel]-=take;if(B.pool[B.sel]<=0)B.sel=firstAvail();buildPalette();if(B.coop)coSend();}
-cv.addEventListener('pointerdown',e=>{if(paused)return;mouse.x=e.clientX;mouse.y=e.clientY;mouse.in=e.pointerType==='mouse';if(mode==='world')worldClick(e.clientX,e.clientY,e.button);else if(mode==='battle')battleClick(e.clientX,e.clientY);});
-cv.addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;mouse.in=e.pointerType==='mouse';});
+let BPT=null;const BPTS=new Map();
+cv.addEventListener('pointerdown',e=>{if(paused)return;mouse.x=e.clientX;mouse.y=e.clientY;mouse.in=e.pointerType==='mouse';if(mode==='world')worldClick(e.clientX,e.clientY,e.button);
+  else if(mode==='battle'&&BS){BPTS.set(e.pointerId,{x:e.clientX,y:e.clientY});try{cv.setPointerCapture(e.pointerId);}catch(_){}
+    if(BPTS.size===2){const [a,b]=[...BPTS.values()];BPT={pinch:Math.hypot(a.x-b.x,a.y-b.y),moved:true};}else BPT={id:e.pointerId,x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY,moved:false,btn:e.button};}});
+cv.addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;mouse.in=e.pointerType==='mouse';
+  if(mode!=='battle'||!BPT||!BPTS.has(e.pointerId))return;BPTS.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(BPT.pinch&&BPTS.size>=2){const [a,b]=[...BPTS.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(d>10){battleZoom(BPT.pinch/d);BPT.pinch=d;}return;}
+  if(e.pointerId!==BPT.id)return;if(!BPT.moved&&Math.hypot(e.clientX-BPT.x0,e.clientY-BPT.y0)>9)BPT.moved=true;if(BPT.moved)battlePan(e.clientX-BPT.x,e.clientY-BPT.y);BPT.x=e.clientX;BPT.y=e.clientY;});
+const bUp=e=>{if(mode==='battle'&&BPT&&e.pointerId===BPT.id&&!BPT.moved&&BPT.btn===0&&!paused)battleClick(e.clientX,e.clientY);BPTS.delete(e.pointerId);if(!BPTS.size||(BPT&&e.pointerId===BPT.id))BPT=null;};
+cv.addEventListener('pointerup',bUp);cv.addEventListener('pointercancel',e=>{BPTS.delete(e.pointerId);BPT=null;});
 cv.addEventListener('pointerleave',()=>{mouse.in=false;});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
-cv.addEventListener('wheel',e=>{e.preventDefault();if(mode==='world'&&WS){WS.zoom=Math.max(.5,Math.min(1.8,WS.zoom*(1+e.deltaY*.0012)));}},{passive:false});
+cv.addEventListener('wheel',e=>{e.preventDefault();if(mode==='world'&&WS){WS.zoom=Math.max(.4,Math.min(1.8,WS.zoom*(1+e.deltaY*.0012)));}else if(mode==='battle'&&BS)battleZoom(1+e.deltaY*.0012);},{passive:false});
 addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
   if(paused)return;
   keys[e.code]=true;
   if(mode==='world'){if(e.code==='KeyE'){const n=nearestRes(null,2);if(n!=null)setGather(n);else toast('Nothing to gather next to you.');}
     else if(e.code==='KeyC')openCity();else if(e.code==='KeyM')openMarch();else if(e.code==='KeyL')openAlliances();else if(e.code==='KeyG')setGfx(!FX.hi);else if(e.code==='KeyT')openArmy();else if(e.code==='KeyH')openHelp();
-    else if(e.code==='Equal'||e.code==='NumpadAdd')WS.zoom=Math.max(.5,WS.zoom/1.15);else if(e.code==='Minus'||e.code==='NumpadSubtract')WS.zoom=Math.min(1.8,WS.zoom*1.15);}
-  else if(mode==='battle'&&B){if(e.code==='Space'&&B.phase==='deploy'&&B.units.some(u=>u.side===0&&u.type!=='wall'))startFight();}});
+    else if(e.code==='Equal'||e.code==='NumpadAdd')WS.zoom=Math.max(.4,WS.zoom/1.15);else if(e.code==='Minus'||e.code==='NumpadSubtract')WS.zoom=Math.min(1.8,WS.zoom*1.15);}
+  else if(mode==='battle'&&B){if(e.code==='Space'&&B.phase==='deploy'&&B.units.some(u=>u.side===0&&u.type!=='wall'))startFight();
+    else if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))battleCamManual();
+    else if(e.code==='Equal'||e.code==='NumpadAdd')battleZoom(1/1.15);else if(e.code==='Minus'||e.code==='NumpadSubtract')battleZoom(1.15);else if(e.code==='KeyF'&&BS){BS.auto=true;updateBctl();}}});
 addEventListener('keyup',e=>{keys[e.code]=false;});
 addEventListener('blur',()=>{keys={};});
 $('btnCity').onclick=()=>{if(!paused)openCity();};
